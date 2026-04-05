@@ -1,15 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const Login = () => {
@@ -130,12 +130,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 60,
+    paddingTop: 45,
     paddingBottom: 20,
   },
   logoImage: {
-    width: 150,
-    height: 150,
+    width: 350,
+    height: 350,
   },
   contentContainer: {
     flex: 1,
@@ -148,6 +148,7 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginBottom: 8,
     textAlign: 'center',
+    marginTop: -60,
   },
   subText: {
     fontSize: 14,
