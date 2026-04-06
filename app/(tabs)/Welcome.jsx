@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
 import {
-    Image,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const Welcome = () => {
@@ -75,18 +75,18 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 80,
-    paddingBottom: -50,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
   logoImage: {
-    width: 400,
-    height: 400,
+    width: 300,
+    height: 300,
   },
   contentContainer: {
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 30,
-    paddingTop: -150,
+    paddingTop: 20,
   },
   welcomeText: {
     fontSize: 32,

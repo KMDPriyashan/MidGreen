@@ -13,7 +13,7 @@ const App = () => {
   const router = useRouter();
 
   const handleLetGo = () => {
-    router.push('Welcome');
+    router.push('/Welcome');
   };
 
   return (

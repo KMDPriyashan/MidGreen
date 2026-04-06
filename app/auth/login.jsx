@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
@@ -11,22 +12,57 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
 const Login = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-    // Add your login logic here
-    Alert.alert('Success', 'Login successful!');
-    // Navigate to home screen after login
-    // router.push('/(tabs)/home');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (error) throw error;
+
+      console.log('Logged in user:', data.user.email);
+      Alert.alert('Success', 'Login successful!');
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.error('Login error:', error.message);
+      let errorMessage = 'Login failed. Please try again.';
+      
+      switch (error.message) {
+        case 'Invalid login credentials':
+          errorMessage = 'Invalid email or password.';
+          break;
+        case 'Email not confirmed':
+          errorMessage = 'Please confirm your email address.';
+          break;
+        default:
+          errorMessage = error.message;
+      }
+      Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignUpRedirect = () => {
@@ -34,14 +70,13 @@ const Login = () => {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert('Forgot Password', 'Password reset feature coming soon!');
+    router.push('/(auth)/forgot-password');
   };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
-      {/* Logo Image */}
       <View style={styles.logoContainer}>
         <Image
           source={require('../../assets/images/Logo-name.png')}
@@ -50,15 +85,11 @@ const Login = () => {
         />
       </View>
       
-      {/* Content */}
       <View style={styles.contentContainer}>
-        {/* Welcome Text */}
         <Text style={styles.welcomeText}>Welcome Back! 👋</Text>
         <Text style={styles.subText}>Sign in to continue your green journey</Text>
         
-        {/* Login Form */}
         <View style={styles.formContainer}>
-          {/* Email Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email Address</Text>
             <TextInput
@@ -69,10 +100,10 @@ const Login = () => {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!loading}
             />
           </View>
           
-          {/* Password Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordContainer}>
@@ -83,6 +114,7 @@ const Login = () => {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                editable={!loading}
               />
               <TouchableOpacity
                 style={styles.eyeButton}
@@ -92,24 +124,27 @@ const Login = () => {
             </View>
           </View>
           
-          {/* Forgot Password */}
           <TouchableOpacity onPress={handleForgotPassword}>
             <Text style={styles.forgotPassword}>Forgot Password?</Text>
           </TouchableOpacity>
           
-          {/* Login Button */}
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>Login</Text>
+          <TouchableOpacity 
+            style={[styles.loginButton, loading && styles.disabledButton]} 
+            onPress={handleLogin}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
           </TouchableOpacity>
           
-          {/* Divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>OR</Text>
             <View style={styles.dividerLine} />
           </View>
           
-          {/* Sign Up Link */}
           <View style={styles.signupContainer}>
             <Text style={styles.signupText}>Don't have an account? </Text>
             <TouchableOpacity onPress={handleSignUpRedirect}>
@@ -130,12 +165,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 45,
+    paddingTop: 60,
     paddingBottom: 20,
   },
   logoImage: {
-    width: 350,
-    height: 350,
+    width: 150,
+    height: 150,
   },
   contentContainer: {
     flex: 1,
@@ -148,7 +183,6 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginBottom: 8,
     textAlign: 'center',
-    marginTop: -60,
   },
   subText: {
     fontSize: 14,
@@ -213,6 +247,9 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 3,
+  },
+  disabledButton: {
+    backgroundColor: '#95a5a6',
   },
   loginButtonText: {
     color: '#fff',
