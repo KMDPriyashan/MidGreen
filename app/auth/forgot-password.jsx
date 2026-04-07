@@ -1,15 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase.js';
 
@@ -41,7 +41,7 @@ const ForgotPassword = () => {
       Alert.alert(
         'Password Reset Email Sent',
         'Check your email for instructions to reset your password.',
-        [{ text: 'OK', onPress: () => router.push('/(auth)/login') }]
+        [{ text: 'OK', onPress: () => router.push('/auth/login') }]
       );
     } catch (error) {
       console.error('Reset error:', error.message);

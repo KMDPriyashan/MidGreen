@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,32 +11,39 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 import { supabase } from '../../lib/supabase';
 
 const Signup = () => {
   const router = useRouter();
-  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // Add ref to track submission timeout
+  const submissionTimeout = useRef(null);
 
   const handleSignup = async () => {
-    if (!fullName || !email || !password || !confirmPassword) {
+    // Prevent multiple submissions
+    if (loading) return;
+
+    // Basic validation
+    if (!fullName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-    
+
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
-    
+
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert('Error', 'Password must be at least 6 characters long');
       return;
     }
 
@@ -47,42 +54,110 @@ const Signup = () => {
     }
 
     setLoading(true);
+
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: email,
+        email: email.trim().toLowerCase(),
         password: password,
         options: {
           data: {
-            full_name: fullName,
-          },
-        },
+            full_name: fullName.trim(),
+          }
+        }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle different error types
+        if (error.message.includes('rate limit') || error.message.includes('too many requests')) {
+          Alert.alert(
+            'Rate Limit Notice',
+            'Due to high traffic, please wait a moment before trying again.\n\n💡 Tip: You can try signing up with a different email address or wait 5-10 minutes.',
+            [
+              { text: 'Try Different Email', onPress: () => handleUseDifferentEmail() },
+              { text: 'OK', style: 'cancel' }
+            ]
+          );
+        } else if (error.message.includes('User already registered')) {
+          Alert.alert(
+            'Account Exists',
+            'This email is already registered. Would you like to login instead?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Go to Login', onPress: () => router.replace('/(auth)/login') }
+            ]
+          );
+        } else if (error.message.includes('weak password')) {
+          Alert.alert('Weak Password', 'Please use a stronger password with at least 6 characters including letters and numbers.');
+        } else {
+          Alert.alert('Signup Error', error.message);
+        }
+        return;
+      }
 
       if (data.user) {
-        console.log('User registered:', data.user.email);
-        Alert.alert(
-          'Success', 
-          'Account created successfully! Please check your email for confirmation.'
-        );
-        router.push('/(auth)/login');
+        // Check if user already exists but not confirmed
+        if (data.user.identities && data.user.identities.length === 0) {
+          Alert.alert(
+            'Account Already Exists',
+            'An account with this email already exists but is not verified. Please check your email for verification link.',
+            [
+              { text: 'Resend Email', onPress: () => resendConfirmationEmail() },
+              { text: 'Go to Login', onPress: () => router.replace('/(auth)/login') }
+            ]
+          );
+        } else {
+          // Successful signup
+          Alert.alert(
+            'Success! 🎉', 
+            'Account created successfully! Please check your email for verification before logging in.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  // Clear form fields for next user
+                  setFullName('');
+                  setEmail('');
+                  setPassword('');
+                  setConfirmPassword('');
+                  // Navigate to login page
+                  router.replace('/auth/login');
+                }
+              }
+            ]
+          );
+        }
       }
+
     } catch (error) {
-      console.error('Signup error:', error.message);
-      let errorMessage = 'Signup failed. Please try again.';
-      
-      switch (error.message) {
-        case 'User already registered':
-          errorMessage = 'An account already exists with this email.';
-          break;
-        case 'Password should be at least 6 characters':
-          errorMessage = 'Password must be at least 6 characters.';
-          break;
-        default:
-          errorMessage = error.message;
+      Alert.alert('Error', 'An unexpected error occurred. Please check your internet connection and try again.');
+      console.error('Signup error:', error);
+    } finally {
+      // Clear any existing timeout
+      if (submissionTimeout.current) {
+        clearTimeout(submissionTimeout.current);
       }
-      Alert.alert('Signup Failed', errorMessage);
+      
+      // Set timeout to prevent immediate re-submission
+      submissionTimeout.current = setTimeout(() => {
+        setLoading(false);
+        submissionTimeout.current = null;
+      }, 3000);
+    }
+  };
+
+  const resendConfirmationEmail = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+      });
+      
+      if (error) throw error;
+      
+      Alert.alert('Email Sent', 'Verification email has been resent. Please check your inbox.');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to resend verification email. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -90,6 +165,13 @@ const Signup = () => {
 
   const handleLoginRedirect = () => {
     router.push('/(auth)/login');
+  };
+
+  const handleUseDifferentEmail = () => {
+    setEmail('');
+    setFullName('');
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -185,6 +267,13 @@ const Signup = () => {
               <Text style={styles.signupButtonText}>Sign Up</Text>
             )}
           </TouchableOpacity>
+
+          {/* Alternative options when rate limited */}
+          <View style={styles.alternativeOptions}>
+            <TouchableOpacity onPress={handleUseDifferentEmail}>
+              <Text style={styles.alternativeText}>Use Different Email</Text>
+            </TouchableOpacity>
+          </View>
           
           <Text style={styles.termsText}>
             By signing up, you agree to our{' '}
@@ -203,6 +292,25 @@ const Signup = () => {
             <TouchableOpacity onPress={handleLoginRedirect}>
               <Text style={styles.loginLink}>Login</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Help text for multiple signups */}
+          <View style={styles.helpContainer}>
+            <Text style={styles.helpText}>
+              🌟 Multiple users can sign up with different emails
+            </Text>
+            <Text style={styles.helpSubText}>
+              Each user needs a unique email address to create an account.
+            </Text>
+            <View style={styles.dividerSmall} />
+            <Text style={styles.helpText}>
+              💡 Tips for smooth signup:
+            </Text>
+            <Text style={styles.helpListItem}>• Use a valid email address (e.g., name@example.com)</Text>
+            <Text style={styles.helpListItem}>• Password must be at least 6 characters</Text>
+            <Text style={styles.helpListItem}>• Check your spam folder for verification email</Text>
+            <Text style={styles.helpListItem}>• If rate limited, wait 5-10 minutes</Text>
+            <Text style={styles.helpListItem}>• Each email can only be used once</Text>
           </View>
         </View>
       </View>
@@ -285,7 +393,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     marginTop: 10,
-    marginBottom: 20,
+    marginBottom: 10,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: {
@@ -303,6 +411,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  alternativeOptions: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  alternativeText: {
+    color: '#2ecc71',
+    fontSize: 14,
+    fontWeight: '500',
   },
   termsText: {
     fontSize: 12,
@@ -325,6 +442,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#e0e0e0',
   },
+  dividerSmall: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 12,
+  },
   dividerText: {
     marginHorizontal: 10,
     color: '#95a5a6',
@@ -334,6 +456,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 30,
   },
   loginText: {
     fontSize: 14,
@@ -343,6 +466,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2ecc71',
     fontWeight: 'bold',
+  },
+  helpContainer: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  helpText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  helpSubText: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  helpListItem: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginLeft: 10,
+    marginBottom: 6,
+    lineHeight: 18,
   },
 });
 

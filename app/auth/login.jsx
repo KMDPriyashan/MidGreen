@@ -21,45 +21,165 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Validation functions (from working login page)
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
+  const validateForm = () => {
+    if (!email.trim()) {
+      return { isValid: false, message: 'Please enter your email address' };
+    }
+
+    if (!validateEmail(email)) {
+      return { isValid: false, message: 'Please enter a valid email address' };
+    }
+
+    if (!password) {
+      return { isValid: false, message: 'Please enter your password' };
+    }
+
+    return { isValid: true, message: '' };
+  };
+
+  // Enhanced Error Handling for Login (from working login page)
+  const handleAuthError = (error) => {
+    const errorMessage = error.message;
+
+    if (errorMessage.includes('Invalid login credentials')) {
+      return 'Invalid email or password. Please try again.';
+    } else if (errorMessage.includes('Email not confirmed')) {
+      return 'Please confirm your email address before logging in. Check your inbox for the confirmation link.';
+    } else if (errorMessage.includes('Email rate limit exceeded')) {
+      return 'Too many attempts. Please try again in a few minutes.';
+    } else if (errorMessage.includes('User not found')) {
+      return 'No account found with this email address. Please sign up first.';
+    } else {
+      return errorMessage || 'An unexpected error occurred. Please try again.';
+    }
+  };
+
+  // Resend verification email (from working login page)
+  const resendVerificationEmail = async (userEmail) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: userEmail,
+      });
+
+      if (error) {
+        Alert.alert('Error', 'Failed to resend verification email. Please try again.');
+      } else {
+        Alert.alert('Success', 'Verification email sent! Please check your inbox.');
+      }
+    } catch (error) {
+      console.error('Resend email error:', error);
+    }
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+  };
+
+  // Login Function (from working login page)
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+    // Validate form
+    const validation = validateForm();
+    if (!validation.isValid) {
+      Alert.alert('Validation Error', validation.message);
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password,
+      });
+
+      if (error) {
+        const userFriendlyError = handleAuthError(error);
+        Alert.alert('Login Error', userFriendlyError);
+        return;
+      }
+
+      if (data.user && data.session) {
+        console.log('Login successful!');
+        
+        // Check if email is confirmed
+        if (!data.user.email_confirmed_at) {
+          Alert.alert(
+            'Email Not Verified',
+            'Please verify your email address before logging in. Check your inbox for the verification link.',
+            [
+              {
+                text: 'Resend Verification',
+                onPress: () => resendVerificationEmail(data.user.email)
+              },
+              {
+                text: 'OK',
+                style: 'cancel'
+              }
+            ]
+          );
+          return;
+        }
+
+        // Successfully logged in with verified email
+        Alert.alert(
+          'Success!',
+          'You have successfully logged in.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => {
+                resetForm();
+                // Navigate to Home Page
+                router.replace('/(tabs)/home');
+              }
+            }
+          ]
+        );
+      }
+
+    } catch (error) {
+      console.error('Unexpected login error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Forgot Password (from working login page)
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email address first');
+      return;
+    }
+
+    if (!validateEmail(email)) {
       Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: 'myapp://auth/reset-password',
       });
 
-      if (error) throw error;
-
-      console.log('Logged in user:', data.user.email);
-      Alert.alert('Success', 'Login successful!');
-      router.replace('/(tabs)/home');
-    } catch (error) {
-      console.error('Login error:', error.message);
-      let errorMessage = 'Login failed. Please try again.';
-      
-      switch (error.message) {
-        case 'Invalid login credentials':
-          errorMessage = 'Invalid email or password.';
-          break;
-        case 'Email not confirmed':
-          errorMessage = 'Please confirm your email address.';
-          break;
-        default:
-          errorMessage = error.message;
+      if (error) {
+        Alert.alert('Error', 'Failed to send password reset email. Please try again.');
+      } else {
+        Alert.alert('Success', 'Password reset email sent! Please check your inbox.');
       }
-      Alert.alert('Login Failed', errorMessage);
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -67,10 +187,6 @@ const Login = () => {
 
   const handleSignUpRedirect = () => {
     router.push('/(auth)/signup');
-  };
-
-  const handleForgotPassword = () => {
-    router.push('/(auth)/forgot-password');
   };
 
   return (
@@ -124,14 +240,14 @@ const Login = () => {
             </View>
           </View>
           
-          <TouchableOpacity onPress={handleForgotPassword}>
+          <TouchableOpacity onPress={handleForgotPassword} disabled={loading}>
             <Text style={styles.forgotPassword}>Forgot Password?</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.loginButton, loading && styles.disabledButton]} 
+            style={[styles.loginButton, loading && styles.disabledButton, (!email || !password) && styles.disabledButton]} 
             onPress={handleLogin}
-            disabled={loading}>
+            disabled={loading || !email || !password}>
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
@@ -250,6 +366,7 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#95a5a6',
+    opacity: 0.6,
   },
   loginButtonText: {
     color: '#fff',
