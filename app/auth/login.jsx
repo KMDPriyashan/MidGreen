@@ -139,7 +139,7 @@ const Login = () => {
               onPress: () => {
                 resetForm();
                 // Navigate to Home Page
-                router.replace('/(tabs)/home');
+                router.replace('/(tabs)/Homepage');
               }
             }
           ]
