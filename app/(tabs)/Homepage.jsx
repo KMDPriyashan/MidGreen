@@ -1,22 +1,28 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    Image,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+
+const { width } = Dimensions.get('window');
+const cardWidth = (width - 40) / 2;
 
 const HomePage = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [activeTab, setActiveTab] = useState('home');
 
   // Plant Data - Using local images with require
   const plantsData = [
@@ -175,6 +181,7 @@ const HomePage = () => {
 
   // Add to cart function
   const addToCart = (plant) => {
+    if (!plant) return;
     Alert.alert(
       'Added to Cart!',
       `${plant.name} has been added to your cart.`,
@@ -183,136 +190,218 @@ const HomePage = () => {
     console.log('Added to cart:', plant.name);
   };
 
-  // Navigate to Admin Login
+  // Navigation function to plant detail page
+  const navigateToPlantDetail = (plantId) => {
+    if (!plantId) return;
+    router.push({
+      pathname: '/(tabs)/plantDetail',
+      params: { plantId: plantId }
+    });
+  };
+
+  // Navigation functions
+  const navigateToHome = () => {
+    setActiveTab('home');
+  };
+
+  const navigateToCart = () => {
+    setActiveTab('cart');
+    router.push('/(tabs)/cart');
+  };
+
+  const navigateToOrders = () => {
+    setActiveTab('orders');
+    router.push('/(tabs)/orders');
+  };
+
   const navigateToAdmin = () => {
+    setActiveTab('admin');
     router.push('/admin/adminLogin');
   };
 
-  // Render each plant card
-  const renderPlantCard = ({ item }) => (
-    <View style={styles.card}>
-      <Image 
-        source={item.image}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
-      <View style={styles.cardContent}>
-        <Text style={styles.plantName}>{item.name}</Text>
-        <Text style={styles.categoryName}>{item.category}</Text>
-        <Text style={styles.description} numberOfLines={2}>
-          {item.description}
-        </Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>{item.price}</Text>
-          {!item.inStock && <Text style={styles.outOfStock}>Out of Stock</Text>}
-        </View>
-        <TouchableOpacity 
-          style={[styles.addToCartButton, !item.inStock && styles.disabledButton]}
-          onPress={() => addToCart(item)}
-          disabled={!item.inStock}
-        >
-          <Text style={styles.addToCartText}>
-            {item.inStock ? 'Add to Cart 🛒' : 'Out of Stock'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header Section with Admin Button */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <Text style={styles.heading}>🌱 Green Paradise</Text>
-            <TouchableOpacity 
-              style={styles.adminButton}
-              onPress={navigateToAdmin}
-            >
-              <Text style={styles.adminButtonText}>🔖 Admin</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.subheading}>
-            Discover your perfect green companion. Shop our collection of beautiful, 
-            air-purifying plants for every space.
-          </Text>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="🔍 Search plants by name or category..."
-            placeholderTextColor="#95a5a6"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+  // Render each plant card - 2 cards per row design
+  const renderPlantCard = ({ item, index }) => {
+    if (!item) return null;
+    return (
+      <TouchableOpacity 
+        onPress={() => navigateToPlantDetail(item.id)}
+        activeOpacity={0.7}
+        style={[
+          styles.cardContainer,
+          index % 2 === 0 ? styles.cardLeft : styles.cardRight
+        ]}
+      >
+        <View style={styles.card}>
+          <Image 
+            source={item.image}
+            style={styles.cardImage}
+            resizeMode="cover"
           />
-        </View>
-
-        {/* Category Filter */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryContainer}
-        >
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category}
-              style={[
-                styles.categoryButton,
-                selectedCategory === category && styles.activeCategoryButton
-              ]}
-              onPress={() => setSelectedCategory(category)}
+          <View style={styles.cardContent}>
+            <Text style={styles.plantName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.categoryName}>{item.category}</Text>
+            <Text style={styles.description} numberOfLines={2}>
+              {item.description}
+            </Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>{item.price}</Text>
+              {!item.inStock && <Text style={styles.outOfStock}>Out of Stock</Text>}
+            </View>
+            <TouchableOpacity 
+              style={[styles.addToCartButton, !item.inStock && styles.disabledButton]}
+              onPress={() => addToCart(item)}
+              disabled={!item.inStock}
             >
-              <Text style={[
-                styles.categoryButtonText,
-                selectedCategory === category && styles.activeCategoryButtonText
-              ]}>
-                {category}
+              <Text style={styles.addToCartText}>
+                {item.inStock ? 'Add to Cart' : 'Out of Stock'}
               </Text>
             </TouchableOpacity>
-          ))}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Header Section */}
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <Text style={styles.heading}>🌱 Green Paradise</Text>
+            </View>
+            <Text style={styles.subheading}>
+              Discover your perfect green companion. Shop our collection of beautiful, 
+              air-purifying plants for every space.
+            </Text>
+          </View>
+
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="🔍 Search plants by name or category..."
+              placeholderTextColor="#95a5a6"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
+          {/* Category Filter */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoryContainer}
+          >
+            {categories.map((category) => (
+              <TouchableOpacity
+                key={category}
+                style={[
+                  styles.categoryButton,
+                  selectedCategory === category && styles.activeCategoryButton
+                ]}
+                onPress={() => setSelectedCategory(category)}
+              >
+                <Text style={[
+                  styles.categoryButtonText,
+                  selectedCategory === category && styles.activeCategoryButtonText
+                ]}>
+                  {category}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Results Count */}
+          <View style={styles.resultsContainer}>
+            <Text style={styles.resultsText}>
+              Showing {filteredPlants.length} plants
+            </Text>
+          </View>
+
+          {/* Plants Grid - 2 columns */}
+          <View style={styles.gridWrapper}>
+            <FlatList
+              data={filteredPlants}
+              renderItem={renderPlantCard}
+              keyExtractor={(item) => item?.id || Math.random().toString()}
+              numColumns={2}
+              scrollEnabled={false}
+              columnWrapperStyle={styles.columnWrapper}
+              contentContainerStyle={styles.gridContainer}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No plants found</Text>
+                  <Text style={styles.emptySubText}>Try adjusting your search</Text>
+                </View>
+              }
+            />
+          </View>
+          
+          <View style={styles.bottomPadding} />
         </ScrollView>
 
-        {/* Results Count */}
-        <View style={styles.resultsContainer}>
-          <Text style={styles.resultsText}>
-            Showing {filteredPlants.length} plants
-          </Text>
-        </View>
+        {/* Fixed Bottom Navigation Bar */}
+        <View style={styles.bottomNav}>
+          <TouchableOpacity 
+            style={[styles.navItem, activeTab === 'home' && styles.activeNavItem]}
+            onPress={navigateToHome}
+          >
+            <Text style={[styles.navIcon, activeTab === 'home' && styles.activeNavIcon]}>🏠</Text>
+            <Text style={[styles.navLabel, activeTab === 'home' && styles.activeNavLabel]}>Home</Text>
+          </TouchableOpacity>
 
-        {/* Plants Grid - 2 columns */}
-        <FlatList
-          data={filteredPlants}
-          renderItem={renderPlantCard}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          scrollEnabled={false}
-          contentContainerStyle={styles.gridContainer}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No plants found</Text>
-              <Text style={styles.emptySubText}>Try adjusting your search</Text>
-            </View>
-          }
-        />
-      </ScrollView>
-    </View>
+          <TouchableOpacity 
+            style={[styles.navItem, activeTab === 'cart' && styles.activeNavItem]}
+            onPress={navigateToCart}
+          >
+            <Text style={[styles.navIcon, activeTab === 'cart' && styles.activeNavIcon]}>🛒</Text>
+            <Text style={[styles.navLabel, activeTab === 'cart' && styles.activeNavLabel]}>Cart</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.navItem, activeTab === 'orders' && styles.activeNavItem]}
+            onPress={navigateToOrders}
+          >
+            <Text style={[styles.navIcon, activeTab === 'orders' && styles.activeNavIcon]}>📦</Text>
+            <Text style={[styles.navLabel, activeTab === 'orders' && styles.activeNavLabel]}>Orders</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.navItem, activeTab === 'admin' && styles.activeNavItem]}
+            onPress={navigateToAdmin}
+          >
+            <Text style={[styles.navIcon, activeTab === 'admin' && styles.activeNavIcon]}>👨‍💼</Text>
+            <Text style={[styles.navLabel, activeTab === 'admin' && styles.activeNavLabel]}>Admin</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollContent: {
+    paddingBottom: 20,
+  },
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 75,
     paddingBottom: 20,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -332,22 +421,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#2c3e50',
-  },
-  adminButton: {
-    backgroundColor: '#2ecc71',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  adminButtonText: {
-    color: 'black',
-    fontSize: 14,
-    fontWeight: '600',
   },
   subheading: {
     fontSize: 13,
@@ -406,16 +479,29 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     fontWeight: '500',
   },
-  gridContainer: {
+  gridWrapper: {
     paddingHorizontal: 10,
-    paddingBottom: 30,
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+  },
+  gridContainer: {
+    paddingBottom: 10,
+  },
+  cardContainer: {
+    flex: 1,
+    marginBottom: 12,
+  },
+  cardLeft: {
+    marginRight: 6,
+  },
+  cardRight: {
+    marginLeft: 6,
   },
   card: {
     flex: 1,
     backgroundColor: '#fff',
     borderRadius: 15,
-    marginHorizontal: 5,
-    marginVertical: 8,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -493,6 +579,54 @@ const styles = StyleSheet.create({
   emptySubText: {
     fontSize: 14,
     color: '#95a5a6',
+  },
+  bottomPadding: {
+    height: 80,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 8,
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  activeNavItem: {
+    backgroundColor: '#2ecc71',
+    borderRadius: 10,
+  },
+  navIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  activeNavIcon: {
+    color: '#fff',
+  },
+  navLabel: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    fontWeight: '500',
+  },
+  activeNavLabel: {
+    color: '#fff',
   },
 });
 
