@@ -1,7 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -12,7 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -23,6 +24,50 @@ const HomePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeTab, setActiveTab] = useState('home');
+  const [cartCount, setCartCount] = useState(0);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Load cart count on component mount
+  useEffect(() => {
+    loadCartCount();
+  }, []);
+
+  // Load cart count from AsyncStorage
+  const loadCartCount = async () => {
+    try {
+      const storedCart = await AsyncStorage.getItem('cart');
+      if (storedCart) {
+        const cart = JSON.parse(storedCart);
+        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+        setCartCount(totalItems);
+      }
+    } catch (error) {
+      console.error('Error loading cart count:', error);
+    }
+  };
+
+  // Show toast notification
+  const showToastMessage = (message) => {
+    setToastMessage(message);
+    setShowToast(true);
+    Animated.sequence([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowToast(false);
+    });
+  };
 
   // Plant Data - Using local images with require
   const plantsData = [
@@ -32,7 +77,8 @@ const HomePage = () => {
       name: 'Monstera Deliciosa',
       category: 'Indoor Plants',
       description: 'Beautiful Swiss Cheese plant with large, glossy split leaves. Perfect for adding tropical vibes to any room.',
-      price: '$29.99',
+      price: 29.99,
+      originalPrice: '$29.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -41,7 +87,8 @@ const HomePage = () => {
       name: 'Snake Plant',
       category: 'Indoor Plant',
       description: 'Low-maintenance plant with tall, upright sword-like leaves. Excellent air purifier and thrives in any condition.',
-      price: '$24.99',
+      price: 24.99,
+      originalPrice: '$24.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -50,7 +97,8 @@ const HomePage = () => {
       name: 'Peace Lily',
       category: 'Indoor Plants',
       description: 'Elegant white flowers and dark green leaves. Known for its air-purifying abilities and easy care.',
-      price: '$19.99',
+      price: 19.99,
+      originalPrice: '$19.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -59,7 +107,8 @@ const HomePage = () => {
       name: 'Fiddle Leaf Fig',
       category: 'Indoor Plants',
       description: 'Stunning tall plant with large, violin-shaped leaves. A favorite for modern home decor.',
-      price: '$49.99',
+      price: 49.99,
+      originalPrice: '$49.99',
       image: require('../../assets/images/home-back.png'),
       inStock: false,
     },
@@ -69,7 +118,8 @@ const HomePage = () => {
       name: 'Lavender',
       category: 'Outdoor Plants',
       description: 'Fragrant purple flowers that attract pollinators. Perfect for gardens and borders.',
-      price: '$12.99',
+      price: 12.99,
+      originalPrice: '$12.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -78,7 +128,8 @@ const HomePage = () => {
       name: 'Rose Bush',
       category: 'Outdoor Plants',
       description: 'Classic red roses with beautiful fragrance. Blooms repeatedly throughout the season.',
-      price: '$34.99',
+      price: 34.99,
+      originalPrice: '$34.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -87,7 +138,8 @@ const HomePage = () => {
       name: 'Hydrangea',
       category: 'Outdoor Plants',
       description: 'Large, colorful flower clusters that bloom all summer. Changes color based on soil pH.',
-      price: '$27.99',
+      price: 27.99,
+      originalPrice: '$27.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -97,7 +149,8 @@ const HomePage = () => {
       name: 'Aloe Vera',
       category: 'Succulents',
       description: 'Medicinal succulent with healing properties. Easy to grow and great for beginners.',
-      price: '$14.99',
+      price: 14.99,
+      originalPrice: '$14.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -106,7 +159,8 @@ const HomePage = () => {
       name: 'Jade Plant',
       category: 'Succulents',
       description: 'Lucky plant with thick, oval-shaped leaves. Brings prosperity and good fortune.',
-      price: '$18.99',
+      price: 18.99,
+      originalPrice: '$18.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -115,7 +169,8 @@ const HomePage = () => {
       name: 'String of Pearls',
       category: 'Succulents',
       description: 'Unique trailing succulent with bead-like leaves. Perfect for hanging baskets.',
-      price: '$22.99',
+      price: 22.99,
+      originalPrice: '$22.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -125,7 +180,8 @@ const HomePage = () => {
       name: 'Orchid',
       category: 'Flowering Plants',
       description: 'Exotic flowers that bloom for months. Available in various stunning colors.',
-      price: '$39.99',
+      price: 39.99,
+      originalPrice: '$39.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -134,7 +190,8 @@ const HomePage = () => {
       name: 'African Violet',
       category: 'Flowering Plants',
       description: 'Compact plant with fuzzy leaves and delicate purple flowers. Blooms year-round.',
-      price: '$15.99',
+      price: 15.99,
+      originalPrice: '$15.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -143,7 +200,8 @@ const HomePage = () => {
       name: 'Bougainvillea',
       category: 'Flowering Plants',
       description: 'Vibrant colorful bracts that bloom profusely. Perfect for trellises and walls.',
-      price: '$32.99',
+      price: 32.99,
+      originalPrice: '$32.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -153,7 +211,8 @@ const HomePage = () => {
       name: 'Basil',
       category: 'Herbs',
       description: 'Aromatic herb essential for Italian cooking. Easy to grow in pots or gardens.',
-      price: '$8.99',
+      price: 8.99,
+      originalPrice: '$8.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -162,7 +221,8 @@ const HomePage = () => {
       name: 'Mint',
       category: 'Herbs',
       description: 'Refreshing herb for teas and cocktails. Grows vigorously and spreads quickly.',
-      price: '$7.99',
+      price: 7.99,
+      originalPrice: '$7.99',
       image: require('../../assets/images/home-back.png'),
       inStock: true,
     },
@@ -179,15 +239,51 @@ const HomePage = () => {
     return matchesSearch && matchesCategory;
   });
 
-  // Add to cart function
-  const addToCart = (plant) => {
+  // Add to cart function with simple toast notification
+  const addToCart = async (plant) => {
     if (!plant) return;
-    Alert.alert(
-      'Added to Cart!',
-      `${plant.name} has been added to your cart.`,
-      [{ text: 'OK', style: 'default' }]
-    );
-    console.log('Added to cart:', plant.name);
+    
+    if (!plant.inStock) {
+      showToastMessage(`❌ ${plant.name} is out of stock`);
+      return;
+    }
+
+    try {
+      // Get existing cart
+      const existingCart = await AsyncStorage.getItem('cart');
+      let cart = existingCart ? JSON.parse(existingCart) : [];
+      
+      // Check if item already exists in cart
+      const existingItemIndex = cart.findIndex(item => item.id === plant.id);
+      
+      if (existingItemIndex >= 0) {
+        // Increase quantity if already in cart
+        cart[existingItemIndex].quantity += 1;
+        showToastMessage(`✓ ${plant.name} quantity increased to ${cart[existingItemIndex].quantity}`);
+      } else {
+        // Add new item to cart
+        cart.push({
+          id: plant.id,
+          name: plant.name,
+          price: plant.price,
+          quantity: 1,
+          image: plant.image,
+          category: plant.category,
+        });
+        showToastMessage(`✓ ${plant.name} added to cart!`);
+      }
+      
+      // Save to AsyncStorage
+      await AsyncStorage.setItem('cart', JSON.stringify(cart));
+      
+      // Update cart count
+      const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+      setCartCount(totalItems);
+      
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      showToastMessage('❌ Failed to add item to cart');
+    }
   };
 
   // Navigation function to plant detail page
@@ -201,21 +297,22 @@ const HomePage = () => {
 
   // Navigation functions
   const navigateToHome = () => {
-    setActiveTab('home');
+    setActiveTab('Home');
+    router.push('/(tabs)/Homepage');
   };
 
   const navigateToCart = () => {
-    setActiveTab('cart');
+    setActiveTab('Cart');
     router.push('/(tabs)/cart');
   };
 
   const navigateToOrders = () => {
-    setActiveTab('orders');
-    router.push('/(tabs)/orders');
+    setActiveTab('Orders');
+    router.push('/(tabs)/Orders');
   };
 
   const navigateToAdmin = () => {
-    setActiveTab('admin');
+    setActiveTab('Admin');
     router.push('/admin/adminLogin');
   };
 
@@ -237,6 +334,11 @@ const HomePage = () => {
             style={styles.cardImage}
             resizeMode="cover"
           />
+          {!item.inStock && (
+            <View style={styles.outOfStockBadge}>
+              <Text style={styles.outOfStockBadgeText}>Out of Stock</Text>
+            </View>
+          )}
           <View style={styles.cardContent}>
             <Text style={styles.plantName} numberOfLines={1}>{item.name}</Text>
             <Text style={styles.categoryName}>{item.category}</Text>
@@ -244,8 +346,7 @@ const HomePage = () => {
               {item.description}
             </Text>
             <View style={styles.priceRow}>
-              <Text style={styles.price}>{item.price}</Text>
-              {!item.inStock && <Text style={styles.outOfStock}>Out of Stock</Text>}
+              <Text style={styles.price}>${item.price.toFixed(2)}</Text>
             </View>
             <TouchableOpacity 
               style={[styles.addToCartButton, !item.inStock && styles.disabledButton]}
@@ -363,6 +464,11 @@ const HomePage = () => {
           >
             <Text style={[styles.navIcon, activeTab === 'cart' && styles.activeNavIcon]}>🛒</Text>
             <Text style={[styles.navLabel, activeTab === 'cart' && styles.activeNavLabel]}>Cart</Text>
+            {cartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -381,6 +487,15 @@ const HomePage = () => {
             <Text style={[styles.navLabel, activeTab === 'admin' && styles.activeNavLabel]}>Admin</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Toast Notification */}
+        {showToast && (
+          <Animated.View style={[styles.toastContainer, { opacity: fadeAnim }]}>
+            <View style={styles.toastContent}>
+              <Text style={styles.toastText}>{toastMessage}</Text>
+            </View>
+          </Animated.View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -421,6 +536,9 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#2c3e50',
+    textAlign: 'center',
+    alignItems: 'center',
+      justifyContent: 'center',
   },
   subheading: {
     fontSize: 13,
@@ -447,6 +565,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingVertical: 10,
     paddingHorizontal: 15,
+    marginBottom: 10,
   },
   categoryButton: {
     paddingHorizontal: 20,
@@ -473,6 +592,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 10,
     backgroundColor: '#fff',
+    marginBottom: 10,
   },
   resultsText: {
     fontSize: 14,
@@ -508,11 +628,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
   },
   cardImage: {
     width: '100%',
     height: 150,
     resizeMode: 'cover',
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  outOfStockBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
   },
   cardContent: {
     padding: 12,
@@ -545,11 +680,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2ecc71',
-  },
-  outOfStock: {
-    fontSize: 11,
-    color: '#e74c3c',
-    fontWeight: '500',
   },
   addToCartButton: {
     backgroundColor: '#2ecc71',
@@ -608,6 +738,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 20,
     borderRadius: 10,
+    position: 'relative',
   },
   activeNavItem: {
     backgroundColor: '#2ecc71',
@@ -627,6 +758,49 @@ const styles = StyleSheet.create({
   },
   activeNavLabel: {
     color: '#fff',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -8,
+    right: 8,
+    backgroundColor: '#e74c3c',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  // Toast Notification Styles
+  toastContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  toastContent: {
+    backgroundColor: 'black',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  toastText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 
