@@ -308,7 +308,7 @@ const HomePage = () => {
 
   const navigateToOrders = () => {
     setActiveTab('Orders');
-    router.push('/(tabs)/Orders');
+    router.push('/(tabs)/orders');
   };
 
   const navigateToAdmin = () => {
