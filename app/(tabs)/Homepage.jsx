@@ -27,11 +27,13 @@ const HomePage = () => {
   const [cartCount, setCartCount] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [plantsData, setPlantsData] = useState([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Load cart count on component mount
   useEffect(() => {
     loadCartCount();
+    loadPlants();
   }, []);
 
   // Load cart count from AsyncStorage
@@ -45,6 +47,255 @@ const HomePage = () => {
       }
     } catch (error) {
       console.error('Error loading cart count:', error);
+    }
+  };
+
+  // Load plants from AsyncStorage (including admin added plants)
+  const loadPlants = async () => {
+    try {
+      // Default plants data
+      const defaultPlants = [
+        // Indoor Plants
+        {
+          id: '1',
+          name: 'Monstera Deliciosa',
+          category: 'Indoor Plants',
+          description: 'Beautiful Swiss Cheese plant with large, glossy split leaves. Perfect for adding tropical vibes to any room.',
+          price: 29.99,
+          originalPrice: '$29.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Water when top 2 inches of soil are dry\n• Provide bright, indirect sunlight\n• Fertilize monthly during growing season',
+          specialNotes: '• Pet friendly? No - toxic to cats and dogs\n• Air purifying: Yes\n• Humidity: Loves high humidity',
+          lightRequirement: 'Indirect Sunlight',
+          waterRequirement: 'Weekly',
+          difficulty: 'Moderate',
+        },
+        {
+          id: '2',
+          name: 'Snake Plant',
+          category: 'Indoor Plant',
+          description: 'Low-maintenance plant with tall, upright sword-like leaves. Excellent air purifier and thrives in any condition.',
+          price: 24.99,
+          originalPrice: '$24.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Water every 2-3 weeks\n• Tolerates low light\n• Wipe leaves occasionally',
+          specialNotes: '• Pet friendly? No - mildly toxic\n• Air purifying: Excellent\n• Perfect for beginners',
+          lightRequirement: 'Low Light',
+          waterRequirement: 'Bi-Weekly',
+          difficulty: 'Easy',
+        },
+        {
+          id: '3',
+          name: 'Peace Lily',
+          category: 'Indoor Plants',
+          description: 'Elegant white flowers and dark green leaves. Known for its air-purifying abilities and easy care.',
+          price: 19.99,
+          originalPrice: '$19.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Keep soil consistently moist\n• Low to medium light\n• Mist leaves regularly',
+          specialNotes: '• Pet friendly? No - toxic to pets\n• Air purifying: Yes\n• Blooms in spring',
+          lightRequirement: 'Low Light',
+          waterRequirement: 'Every 2-3 Days',
+          difficulty: 'Easy',
+        },
+        {
+          id: '4',
+          name: 'Fiddle Leaf Fig',
+          category: 'Indoor Plants',
+          description: 'Stunning tall plant with large, violin-shaped leaves. A favorite for modern home decor.',
+          price: 49.99,
+          originalPrice: '$49.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: false,
+          careInstructions: '• Water when top inch of soil is dry\n• Bright, indirect light\n• Rotate weekly',
+          specialNotes: '• Pet friendly? No - toxic\n• Air purifying: Yes\n• Fickle - avoid moving',
+          lightRequirement: 'Bright Light',
+          waterRequirement: 'Weekly',
+          difficulty: 'Hard',
+        },
+        // Outdoor Plants
+        {
+          id: '5',
+          name: 'Lavender',
+          category: 'Outdoor Plants',
+          description: 'Fragrant purple flowers that attract pollinators. Perfect for gardens and borders.',
+          price: 12.99,
+          originalPrice: '$12.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Full sun required\n• Well-draining soil\n• Prune after flowering',
+          specialNotes: '• Pet friendly? Yes\n• Attracts bees and butterflies\n• Drought tolerant',
+          lightRequirement: 'Direct Sunlight',
+          waterRequirement: 'When Soil is Dry',
+          difficulty: 'Easy',
+        },
+        {
+          id: '6',
+          name: 'Rose Bush',
+          category: 'Outdoor Plants',
+          description: 'Classic red roses with beautiful fragrance. Blooms repeatedly throughout the season.',
+          price: 34.99,
+          originalPrice: '$34.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Full sun (6+ hours)\n• Regular watering\n• Fertilize in spring',
+          specialNotes: '• Pet friendly? No - thorns can injure\n• Fragrant flowers\n• Prune in late winter',
+          lightRequirement: 'Direct Sunlight',
+          waterRequirement: 'Every 2-3 Days',
+          difficulty: 'Moderate',
+        },
+        {
+          id: '7',
+          name: 'Hydrangea',
+          category: 'Outdoor Plants',
+          description: 'Large, colorful flower clusters that bloom all summer. Changes color based on soil pH.',
+          price: 27.99,
+          originalPrice: '$27.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Morning sun, afternoon shade\n• Keep soil moist\n• Prune after blooming',
+          specialNotes: '• Pet friendly? No - toxic\n• Soil pH affects flower color\n• Blue in acidic soil',
+          lightRequirement: 'Indirect Sunlight',
+          waterRequirement: 'Daily',
+          difficulty: 'Moderate',
+        },
+        // Succulents
+        {
+          id: '8',
+          name: 'Aloe Vera',
+          category: 'Succulents',
+          description: 'Medicinal succulent with healing properties. Easy to grow and great for beginners.',
+          price: 14.99,
+          originalPrice: '$14.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Bright, indirect light\n• Water deeply but infrequently\n• Use cactus soil',
+          specialNotes: '• Pet friendly? No - toxic to pets\n• Medicinal gel for burns\n• Seasonal bloomer',
+          lightRequirement: 'Bright Light',
+          waterRequirement: 'Bi-Weekly',
+          difficulty: 'Easy',
+        },
+        {
+          id: '9',
+          name: 'Jade Plant',
+          category: 'Succulents',
+          description: 'Lucky plant with thick, oval-shaped leaves. Brings prosperity and good fortune.',
+          price: 18.99,
+          originalPrice: '$18.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Bright light for 4+ hours\n• Allow soil to dry between watering\n• Prune to shape',
+          specialNotes: '• Pet friendly? No - toxic\n• Symbol of good luck\n• Can live for decades',
+          lightRequirement: 'Direct Sunlight',
+          waterRequirement: 'When Soil is Dry',
+          difficulty: 'Easy',
+        },
+        {
+          id: '10',
+          name: 'String of Pearls',
+          category: 'Succulents',
+          description: 'Unique trailing succulent with bead-like leaves. Perfect for hanging baskets.',
+          price: 22.99,
+          originalPrice: '$22.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Bright indirect light\n• Water when pearls look deflated\n• Well-draining soil',
+          specialNotes: '• Pet friendly? No - toxic\n• Trailing up to 3 feet\n• Avoid wetting pearls',
+          lightRequirement: 'Bright Light',
+          waterRequirement: 'Weekly',
+          difficulty: 'Moderate',
+        },
+        // Flowering Plants
+        {
+          id: '11',
+          name: 'Orchid',
+          category: 'Flowering Plants',
+          description: 'Exotic flowers that bloom for months. Available in various stunning colors.',
+          price: 39.99,
+          originalPrice: '$39.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Bright, indirect light\n• Water weekly with orchid food\n• High humidity',
+          specialNotes: '• Pet friendly? Yes\n• Blooms last 2-3 months\n• Needs orchid bark',
+          lightRequirement: 'Indirect Sunlight',
+          waterRequirement: 'Weekly',
+          difficulty: 'Hard',
+        },
+        {
+          id: '12',
+          name: 'African Violet',
+          category: 'Flowering Plants',
+          description: 'Compact plant with fuzzy leaves and delicate purple flowers. Blooms year-round.',
+          price: 15.99,
+          originalPrice: '$15.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Bright, indirect light\n• Water from bottom\n• Avoid wetting leaves',
+          specialNotes: '• Pet friendly? Yes\n• Blooms continuously\n• Use self-watering pots',
+          lightRequirement: 'Bright Light',
+          waterRequirement: 'Bi-Weekly',
+          difficulty: 'Moderate',
+        },
+        {
+          id: '13',
+          name: 'Bougainvillea',
+          category: 'Flowering Plants',
+          description: 'Vibrant colorful bracts that bloom profusely. Perfect for trellises and walls.',
+          price: 32.99,
+          originalPrice: '$32.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Full sun required\n• Water when top soil is dry\n• Prune after blooming',
+          specialNotes: '• Pet friendly? No - thorns\n• Blooms in cycles\n• Great for trellises',
+          lightRequirement: 'Direct Sunlight',
+          waterRequirement: 'Weekly',
+          difficulty: 'Moderate',
+        },
+        // Herbs
+        {
+          id: '14',
+          name: 'Basil',
+          category: 'Herbs',
+          description: 'Aromatic herb essential for Italian cooking. Easy to grow in pots or gardens.',
+          price: 8.99,
+          originalPrice: '$8.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Full sun (6+ hours)\n• Keep soil moist\n• Pinch flowers for leaf growth',
+          specialNotes: '• Pet friendly? Yes\n• Great for pesto\n• Harvest regularly',
+          lightRequirement: 'Direct Sunlight',
+          waterRequirement: 'Daily',
+          difficulty: 'Easy',
+        },
+        {
+          id: '15',
+          name: 'Mint',
+          category: 'Herbs',
+          description: 'Refreshing herb for teas and cocktails. Grows vigorously and spreads quickly.',
+          price: 7.99,
+          originalPrice: '$7.99',
+          image: require('../../assets/images/home-back.png'),
+          inStock: true,
+          careInstructions: '• Partial shade to full sun\n• Keep soil consistently moist\n• Grows best in containers',
+          specialNotes: '• Pet friendly? Yes\n• Invasive - keep in pots\n• Great for mojitos',
+          lightRequirement: 'Indirect Sunlight',
+          waterRequirement: 'Daily',
+          difficulty: 'Easy',
+        },
+      ];
+
+      // Load custom plants from storage
+      const storedPlants = await AsyncStorage.getItem('plants');
+      let customPlants = storedPlants ? JSON.parse(storedPlants) : [];
+      
+      // Merge default and custom plants
+      const allPlants = [...defaultPlants, ...customPlants];
+      setPlantsData(allPlants);
+    } catch (error) {
+      console.error('Error loading plants:', error);
     }
   };
 
@@ -69,165 +320,6 @@ const HomePage = () => {
     });
   };
 
-  // Plant Data - Using local images with require
-  const plantsData = [
-    // Indoor Plants
-    {
-      id: '1',
-      name: 'Monstera Deliciosa',
-      category: 'Indoor Plants',
-      description: 'Beautiful Swiss Cheese plant with large, glossy split leaves. Perfect for adding tropical vibes to any room.',
-      price: 29.99,
-      originalPrice: '$29.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '2',
-      name: 'Snake Plant',
-      category: 'Indoor Plant',
-      description: 'Low-maintenance plant with tall, upright sword-like leaves. Excellent air purifier and thrives in any condition.',
-      price: 24.99,
-      originalPrice: '$24.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '3',
-      name: 'Peace Lily',
-      category: 'Indoor Plants',
-      description: 'Elegant white flowers and dark green leaves. Known for its air-purifying abilities and easy care.',
-      price: 19.99,
-      originalPrice: '$19.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '4',
-      name: 'Fiddle Leaf Fig',
-      category: 'Indoor Plants',
-      description: 'Stunning tall plant with large, violin-shaped leaves. A favorite for modern home decor.',
-      price: 49.99,
-      originalPrice: '$49.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: false,
-    },
-    // Outdoor Plants
-    {
-      id: '5',
-      name: 'Lavender',
-      category: 'Outdoor Plants',
-      description: 'Fragrant purple flowers that attract pollinators. Perfect for gardens and borders.',
-      price: 12.99,
-      originalPrice: '$12.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '6',
-      name: 'Rose Bush',
-      category: 'Outdoor Plants',
-      description: 'Classic red roses with beautiful fragrance. Blooms repeatedly throughout the season.',
-      price: 34.99,
-      originalPrice: '$34.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '7',
-      name: 'Hydrangea',
-      category: 'Outdoor Plants',
-      description: 'Large, colorful flower clusters that bloom all summer. Changes color based on soil pH.',
-      price: 27.99,
-      originalPrice: '$27.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    // Succulents
-    {
-      id: '8',
-      name: 'Aloe Vera',
-      category: 'Succulents',
-      description: 'Medicinal succulent with healing properties. Easy to grow and great for beginners.',
-      price: 14.99,
-      originalPrice: '$14.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '9',
-      name: 'Jade Plant',
-      category: 'Succulents',
-      description: 'Lucky plant with thick, oval-shaped leaves. Brings prosperity and good fortune.',
-      price: 18.99,
-      originalPrice: '$18.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '10',
-      name: 'String of Pearls',
-      category: 'Succulents',
-      description: 'Unique trailing succulent with bead-like leaves. Perfect for hanging baskets.',
-      price: 22.99,
-      originalPrice: '$22.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    // Flowering Plants
-    {
-      id: '11',
-      name: 'Orchid',
-      category: 'Flowering Plants',
-      description: 'Exotic flowers that bloom for months. Available in various stunning colors.',
-      price: 39.99,
-      originalPrice: '$39.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '12',
-      name: 'African Violet',
-      category: 'Flowering Plants',
-      description: 'Compact plant with fuzzy leaves and delicate purple flowers. Blooms year-round.',
-      price: 15.99,
-      originalPrice: '$15.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '13',
-      name: 'Bougainvillea',
-      category: 'Flowering Plants',
-      description: 'Vibrant colorful bracts that bloom profusely. Perfect for trellises and walls.',
-      price: 32.99,
-      originalPrice: '$32.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    // Herbs
-    {
-      id: '14',
-      name: 'Basil',
-      category: 'Herbs',
-      description: 'Aromatic herb essential for Italian cooking. Easy to grow in pots or gardens.',
-      price: 8.99,
-      originalPrice: '$8.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-    {
-      id: '15',
-      name: 'Mint',
-      category: 'Herbs',
-      description: 'Refreshing herb for teas and cocktails. Grows vigorously and spreads quickly.',
-      price: 7.99,
-      originalPrice: '$7.99',
-      image: require('../../assets/images/home-back.png'),
-      inStock: true,
-    },
-  ];
-
   // Get unique categories
   const categories = ['All', ...new Set(plantsData.map(plant => plant.category))];
 
@@ -249,19 +341,15 @@ const HomePage = () => {
     }
 
     try {
-      // Get existing cart
       const existingCart = await AsyncStorage.getItem('cart');
       let cart = existingCart ? JSON.parse(existingCart) : [];
       
-      // Check if item already exists in cart
       const existingItemIndex = cart.findIndex(item => item.id === plant.id);
       
       if (existingItemIndex >= 0) {
-        // Increase quantity if already in cart
         cart[existingItemIndex].quantity += 1;
         showToastMessage(`✓ ${plant.name} quantity increased to ${cart[existingItemIndex].quantity}`);
       } else {
-        // Add new item to cart
         cart.push({
           id: plant.id,
           name: plant.name,
@@ -273,10 +361,8 @@ const HomePage = () => {
         showToastMessage(`✓ ${plant.name} added to cart!`);
       }
       
-      // Save to AsyncStorage
       await AsyncStorage.setItem('cart', JSON.stringify(cart));
       
-      // Update cart count
       const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
       setCartCount(totalItems);
       
@@ -297,28 +383,34 @@ const HomePage = () => {
 
   // Navigation functions
   const navigateToHome = () => {
-    setActiveTab('Home');
+    setActiveTab('home');
     router.push('/(tabs)/Homepage');
   };
 
   const navigateToCart = () => {
-    setActiveTab('Cart');
+    setActiveTab('cart');
     router.push('/(tabs)/cart');
   };
 
   const navigateToOrders = () => {
-    setActiveTab('Orders');
+    setActiveTab('orders');
     router.push('/(tabs)/orders');
   };
 
   const navigateToAdmin = () => {
-    setActiveTab('Admin');
+    setActiveTab('admin');
     router.push('/admin/adminLogin');
   };
 
-  // Render each plant card - 2 cards per row design
+  // Render each plant card - 2 cards per row design with image fix
   const renderPlantCard = ({ item, index }) => {
     if (!item) return null;
+    
+    // Determine image source (handle both require and URI)
+    const imageSource = typeof item.image === 'string' 
+      ? { uri: item.image } 
+      : item.image;
+    
     return (
       <TouchableOpacity 
         onPress={() => navigateToPlantDetail(item.id)}
@@ -330,7 +422,7 @@ const HomePage = () => {
       >
         <View style={styles.card}>
           <Image 
-            source={item.image}
+            source={imageSource}
             style={styles.cardImage}
             resizeMode="cover"
           />
@@ -363,6 +455,84 @@ const HomePage = () => {
     );
   };
 
+  // Footer Component
+  const Footer = () => (
+    <View style={styles.footer}>
+      {/* Main Footer Content */}
+      <View style={styles.footerContent}>
+        {/* Brand Section */}
+        <View style={styles.footerBrand}>
+          <Text style={styles.footerLogo}>Green Paradise</Text>
+          <Text style={styles.footerTagline}>Grow Green, Live Clean</Text>
+          <Text style={styles.footerDescription}>
+            Bringing nature to your doorstep with premium quality plants that purify air and bring life to your space.
+          </Text>
+        </View>
+
+        {/* Quick Links */}
+        <View style={styles.footerSection}>
+          <Text style={styles.footerSectionTitle}>Quick Links</Text>
+          <TouchableOpacity onPress={navigateToHome}>
+            <Text style={styles.footerLink}>Home</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={navigateToCart}>
+            <Text style={styles.footerLink}>Cart</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={navigateToOrders}>
+            <Text style={styles.footerLink}>Orders</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/admin/adminLogin')}>
+            <Text style={styles.footerLink}>Admin</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Support */}
+        <View style={styles.footerSection}>
+          <Text style={styles.footerSectionTitle}>Support</Text>
+          <TouchableOpacity>
+            <Text style={styles.footerLink}>FAQ</Text>
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Text style={styles.footerLink}>Shipping Info</Text>
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Text style={styles.footerLink}>Returns Policy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Text style={styles.footerLink}>Terms & Conditions</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Contact Info */}
+        <View style={styles.footerSection}>
+          <Text style={styles.footerSectionTitle}>Contact Us</Text>
+          <View style={styles.contactItem}>
+            <Text style={styles.contactIcon}>📧</Text>
+            <Text style={styles.contactText}>support@midgreen.com</Text>
+          </View>
+          <View style={styles.contactItem}>
+            <Text style={styles.contactIcon}>📞</Text>
+            <Text style={styles.contactText}>+1 (234) 567-890</Text>
+          </View>
+          <View style={styles.contactItem}>
+            <Text style={styles.contactIcon}>📍</Text>
+            <Text style={styles.contactText}>123 Green Street, Plant City</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Copyright Section */}
+      <View style={styles.copyrightSection}>
+        <Text style={styles.copyrightText}>
+          © 2024 Green Paradise. All rights reserved.
+        </Text>
+        <Text style={styles.copyrightSubtext}>
+          🌿 Every purchase helps us plant a tree
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -372,15 +542,37 @@ const HomePage = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Header Section */}
+          {/* Attractive Centered Header Section */}
           <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <Text style={styles.heading}>🌱 Green Paradise</Text>
-            </View>
+            
+            
+            <Text style={styles.heading}>Green Paradise</Text>
+            
+            <Text style={styles.subtitle}>
+              Bring Nature Home
+            </Text>
+            
             <Text style={styles.subheading}>
               Discover your perfect green companion. Shop our collection of beautiful, 
               air-purifying plants for every space.
             </Text>
+            
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>50+</Text>
+                <Text style={styles.statLabel}>Plant Varieties</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>10k+</Text>
+                <Text style={styles.statLabel}>Happy Customers</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>Free</Text>
+                <Text style={styles.statLabel}>Shipping*</Text>
+              </View>
+            </View>
           </View>
 
           {/* Search Bar */}
@@ -444,6 +636,9 @@ const HomePage = () => {
               }
             />
           </View>
+          
+          {/* Footer Section */}
+          <Footer />
           
           <View style={styles.bottomPadding} />
         </ScrollView>
@@ -513,38 +708,104 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
+  // Attractive Centered Header Styles
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: '#2ecc71',
     paddingHorizontal: 20,
-    paddingTop: 75,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingTop: 60,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
     alignItems: 'center',
-    marginBottom: 10,
+  },
+  decorativeLeaves: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 15,
+    gap: 15,
+  },
+  leafIcon: {
+    fontSize: 24,
+    opacity: 0.9,
   },
   heading: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: '#fff',
     textAlign: 'center',
-    alignItems: 'center',
-      justifyContent: 'center',
+    marginBottom: 10,
+    letterSpacing: 1,
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 12,
+    opacity: 0.95,
+    fontStyle: 'italic',
   },
   subheading: {
-    fontSize: 13,
-    color: '#7f8c8d',
-    lineHeight: 20,
+    fontSize: 14,
+    color: '#fff',
     textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 25,
+    opacity: 0.9,
+    paddingHorizontal: 10,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    marginBottom: 20,
+    width: '100%',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  headerBottomDecoration: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 5,
+  },
+  decorationLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 1,
+  },
+  decorationIcon: {
+    fontSize: 16,
+    marginHorizontal: 10,
+    color: '#fff',
   },
   searchContainer: {
     paddingHorizontal: 15,
@@ -710,6 +971,104 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#95a5a6',
   },
+  // Footer Styles
+  footer: {
+    backgroundColor: '#1a1a2e',
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 30,
+    paddingBottom: 20,
+  },
+  footerContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 25,
+  },
+  footerBrand: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  footerLogo: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2ecc71',
+    marginBottom: 8,
+  },
+  footerTagline: {
+    fontSize: 14,
+    color: '#fff',
+    marginBottom: 10,
+    fontStyle: 'italic',
+  },
+  footerDescription: {
+    fontSize: 12,
+    color: '#bdc3c7',
+    lineHeight: 18,
+  },
+  footerSection: {
+    width: '48%',
+    marginBottom: 20,
+  },
+  footerSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  footerLink: {
+    fontSize: 13,
+    color: '#bdc3c7',
+    marginBottom: 8,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  contactIcon: {
+    fontSize: 14,
+    marginRight: 10,
+    color: '#2ecc71',
+  },
+  contactText: {
+    fontSize: 12,
+    color: '#bdc3c7',
+  },
+  paymentSection: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  paymentTitle: {
+    fontSize: 14,
+    color: '#fff',
+    marginBottom: 10,
+  },
+  paymentIcons: {
+    flexDirection: 'row',
+    gap: 15,
+  },
+  paymentIcon: {
+    fontSize: 24,
+  },
+  copyrightSection: {
+    alignItems: 'center',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  copyrightText: {
+    fontSize: 12,
+    color: '#bdc3c7',
+    marginBottom: 5,
+  },
+  copyrightSubtext: {
+    fontSize: 11,
+    color: '#2ecc71',
+  },
   bottomPadding: {
     height: 80,
   },
@@ -776,7 +1135,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  // Toast Notification Styles
   toastContainer: {
     position: 'absolute',
     bottom: 100,

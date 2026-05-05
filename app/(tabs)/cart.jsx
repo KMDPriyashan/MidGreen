@@ -2,20 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    Image,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Image,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
@@ -315,7 +315,7 @@ const CartPage = () => {
   // Navigation functions
   const navigateToHome = () => {
     setActiveTab('home');
-    router.push('/(tabs)/home');
+    router.push('/(tabs)/Homepage');
   };
 
   const navigateToCart = () => {
@@ -533,7 +533,7 @@ const CartPage = () => {
                     style={styles.checkoutButton}
                     onPress={handleCheckout}
                   >
-                    <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+                    <Text style={styles.checkoutButtonText}>Proceed to Place Order</Text>
                   </TouchableOpacity>
                 </View>
 

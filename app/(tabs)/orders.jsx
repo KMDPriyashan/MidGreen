@@ -2,18 +2,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
@@ -68,7 +68,7 @@ const OrdersPage = () => {
   // Navigation functions
   const navigateToHome = () => {
     setActiveTab('home');
-    router.push('/(tabs)/home');
+    router.push('/(tabs)/Homepage');
   };
 
   const navigateToCart = () => {
@@ -292,7 +292,7 @@ const OrdersPage = () => {
                 style={styles.cancelButton}
                 onPress={() => cancelOrder(order.orderId)}
               >
-                <Text style={styles.cancelButtonText}>Cancel Order</Text>
+                <Text style={styles.cancelButtonText}>Cancel Order !</Text>
               </TouchableOpacity>
             )}
 
@@ -1138,7 +1138,7 @@ const styles = StyleSheet.create({
   },
   saveEditButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
 });
