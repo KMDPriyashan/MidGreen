@@ -25,20 +25,19 @@ const AdminHome = () => {
   const [selectedPlant, setSelectedPlant] = useState(null);
   const [editedPlant, setEditedPlant] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderDetailModalVisible, setOrderDetailModalVisible] = useState(false);
+  const [totalRevenue, setTotalRevenue] = useState(0);
 
-  // Sample admin stats with unique IDs
+  // Calculate dynamic stats
   const [stats, setStats] = useState([
     { id: 'stat_1', title: 'Total Plants', value: '0', icon: '🌱', color: '#2ecc71' },
-    { id: 'stat_2', title: 'Total Orders', value: '1,234', icon: '📦', color: '#2ecc71' },
-    { id: 'stat_3', title: 'Total Users', value: '5,678', icon: '👥', color: '#2ecc71' },
-    { id: 'stat_4', title: 'Revenue', value: '$45,678', icon: '💰', color: '#2ecc71' },
+    { id: 'stat_2', title: 'Total Orders', value: '0', icon: '📦', color: '#2ecc71' },
+    { id: 'stat_3', title: 'Total Users', value: '0', icon: '👥', color: '#2ecc71' },
+    { id: 'stat_4', title: 'Revenue', value: '$0', icon: '💰', color: '#2ecc71' },
   ]);
-
-  const recentOrders = [
-    { id: 'order_1', customer: 'John Doe', plant: 'Monstera', amount: '$29.99', status: 'Delivered' },
-    { id: 'order_2', customer: 'Jane Smith', plant: 'Snake Plant', amount: '$24.99', status: 'Processing' },
-    { id: 'order_3', customer: 'Mike Johnson', plant: 'Peace Lily', amount: '$19.99', status: 'Shipped' },
-  ];
 
   // Default placeholder image URL
   const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/80x80?text=🌿';
@@ -70,12 +69,12 @@ const AdminHome = () => {
   // Load plants from storage
   useEffect(() => {
     loadPlants();
+    loadOrders();
   }, []);
 
   const loadPlants = async () => {
     try {
       setLoading(true);
-      // Complete 15 default plants data (matching homepage)
       const defaultPlants = [
         // Indoor Plants (4 plants)
         {
@@ -324,11 +323,9 @@ const AdminHome = () => {
         },
       ];
 
-      // Load custom plants from storage
       const storedPlants = await AsyncStorage.getItem('plants');
       let customPlants = storedPlants ? JSON.parse(storedPlants) : [];
       
-      // Ensure custom plants have unique IDs and don't duplicate default IDs
       customPlants = customPlants
         .filter(plant => !defaultPlants.some(defaultPlant => defaultPlant.id === plant.id))
         .map((plant, index) => ({
@@ -336,11 +333,9 @@ const AdminHome = () => {
           id: plant.id || `custom_${Date.now()}_${index}`
         }));
       
-      // Merge default and custom plants (default plants first, then custom)
       const allPlants = [...defaultPlants, ...customPlants];
       setPlants(allPlants);
       
-      // Update stats with actual plant count
       setStats(prevStats => 
         prevStats.map(stat => 
           stat.id === 'stat_1' ? { ...stat, value: String(allPlants.length) } : stat
@@ -352,6 +347,62 @@ const AdminHome = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Load orders from storage
+  const loadOrders = async () => {
+    try {
+      setOrdersLoading(true);
+      const storedOrders = await AsyncStorage.getItem('orders');
+      if (storedOrders) {
+        const parsedOrders = JSON.parse(storedOrders);
+        parsedOrders.sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate));
+        setOrders(parsedOrders);
+        
+        // Calculate total revenue from completed orders
+        const revenue = parsedOrders
+          .filter(order => order.paymentStatus === 'completed')
+          .reduce((sum, order) => sum + (order.total || 0), 0);
+        setTotalRevenue(revenue);
+        
+        // Get unique users count
+        const uniqueUsers = [...new Set(parsedOrders.map(order => order.userId))].length;
+        
+        // Update stats
+        setStats(prevStats => 
+          prevStats.map(stat => {
+            if (stat.id === 'stat_2') return { ...stat, value: String(parsedOrders.length) };
+            if (stat.id === 'stat_3') return { ...stat, value: String(uniqueUsers || parsedOrders.length) };
+            if (stat.id === 'stat_4') return { ...stat, value: `$${revenue.toLocaleString()}` };
+            return stat;
+          })
+        );
+      }
+    } catch (error) {
+      console.error('Error loading orders:', error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  // Update order status
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const updatedOrders = orders.map(order =>
+        order.orderId === orderId ? { ...order, status: newStatus } : order
+      );
+      await AsyncStorage.setItem('orders', JSON.stringify(updatedOrders));
+      setOrders(updatedOrders);
+      Alert.alert('Success', `Order status updated to ${newStatus}`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update order status');
+    }
+  };
+
+  // View order details
+  const viewOrderDetails = (order) => {
+    setSelectedOrder(order);
+    setOrderDetailModalVisible(true);
   };
 
   const handleLogout = () => {
@@ -455,85 +506,128 @@ const AdminHome = () => {
     }
   };
 
-  // Ensure unique keys for all render functions
+  // Get status color for orders
+  const getOrderStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return '#f39c12';
+      case 'processing': return '#3498db';
+      case 'shipped': return '#2ecc71';
+      case 'delivered': return '#27ae60';
+      case 'cancelled': return '#e74c3c';
+      default: return '#7f8c8d';
+    }
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  // SINGLE renderStatCard function
   const renderStatCard = ({ item }) => (
-    <View key={item.id} style={[styles.statCard, { borderTopColor: item.color }]}>
+    <View style={[styles.statCard, { borderTopColor: item.color }]}>
       <Text style={styles.statIcon}>{item.icon}</Text>
       <Text style={styles.statValue}>{item.value}</Text>
       <Text style={styles.statTitle}>{item.title}</Text>
     </View>
   );
 
+  // Render order item for the orders list - NO key prop inside, FlatList will handle it
   const renderOrderItem = ({ item }) => (
-    <View key={item.id} style={styles.orderItem}>
-      <View style={styles.orderInfo}>
-        <Text style={styles.customerName}>{item.customer}</Text>
-        <Text style={styles.plantName}>{item.plant}</Text>
-        <Text style={styles.orderAmount}>{item.amount}</Text>
+    <TouchableOpacity 
+      style={styles.orderCard}
+      onPress={() => viewOrderDetails(item)}
+      activeOpacity={0.9}
+    >
+      <View style={styles.orderCardHeader}>
+        <View>
+          <Text style={styles.orderId}>#{item.orderId?.slice(-12)}</Text>
+          <Text style={styles.orderDate}>{formatDate(item.orderDate)}</Text>
+        </View>
+        <View style={[styles.orderStatusBadge, { backgroundColor: getOrderStatusColor(item.status) }]}>
+          <Text style={styles.orderStatusText}>{item.status?.toUpperCase()}</Text>
+        </View>
       </View>
-      <View style={[styles.statusBadge, 
-        item.status === 'Delivered' && styles.deliveredBadge,
-        item.status === 'Processing' && styles.processingBadge,
-        item.status === 'Shipped' && styles.shippedBadge,
-      ]}>
-        <Text style={styles.statusText}>{item.status}</Text>
+      
+      <View style={styles.orderCardBody}>
+        <Text style={styles.orderCustomer}>Customer: {item.customerName || 'Guest User'}</Text>
+        <Text style={styles.orderItems}>Items: {item.items?.length || 0} products</Text>
+        <Text style={styles.orderTotal}>Total: ${item.total?.toFixed(2) || '0.00'}</Text>
       </View>
-    </View>
+      
+      <View style={styles.orderCardFooter}>
+        <Text style={styles.paymentMethod}>Payment: {item.paymentMethod || 'N/A'}</Text>
+        <Text style={[styles.orderAmount, { color: getOrderStatusColor(item.status) }]}>
+          {item.status === 'delivered' ? '✓ Completed' : 'Processing'}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 
-  const renderPlantCard = ({ item }) => (
-    <View key={item.id} style={styles.plantCard}>
-      <Image 
-        source={{ uri: imageErrors[item.id] ? PLACEHOLDER_IMAGE : (item.image || PLACEHOLDER_IMAGE) }} 
-        style={styles.plantCardImage}
-        onError={() => handleImageError(item.id)}
-      />
-      
-      <View style={styles.plantCardInfo}>
-        <View style={styles.plantCardHeader}>
-          <Text style={styles.plantCardName}>{item.name}</Text>
-          <View style={[styles.stockBadge, item.inStock ? styles.inStockBadge : styles.outOfStockBadge]}>
-            <Text style={styles.stockBadgeText}>{item.inStock ? 'In Stock' : 'Out of Stock'}</Text>
+  const renderPlantCard = ({ item }) => {
+    const imageSource = imageErrors[item.id] 
+      ? PLACEHOLDER_IMAGE 
+      : (item.image || PLACEHOLDER_IMAGE);
+    
+    return (
+      <View style={styles.plantCard}>
+        <Image 
+          source={{ uri: imageSource }}
+          style={styles.plantCardImage}
+          onError={() => handleImageError(item.id)}
+        />
+        
+        <View style={styles.plantCardInfo}>
+          <View style={styles.plantCardHeader}>
+            <Text style={styles.plantCardName}>{item.name}</Text>
+            <View style={[styles.stockBadge, item.inStock ? styles.inStockBadge : styles.outOfStockBadge]}>
+              <Text style={styles.stockBadgeText}>{item.inStock ? 'In Stock' : 'Out of Stock'}</Text>
+            </View>
+          </View>
+          
+          <Text style={styles.plantCardCategory}>{item.category}</Text>
+          
+          <View style={styles.priceContainer}>
+            <Text style={styles.plantCardPrice}>${item.price.toFixed(2)}</Text>
+            {item.originalPrice && item.discount > 0 && (
+              <>
+                <Text style={styles.originalPrice}>${item.originalPrice.toFixed(2)}</Text>
+                <View style={styles.discountBadge}>
+                  <Text style={styles.discountText}>-{item.discount}%</Text>
+                </View>
+              </>
+            )}
+          </View>
+          
+          <View style={styles.plantCardActions}>
+            <TouchableOpacity 
+              style={[styles.actionBtn, styles.editBtn]}
+              onPress={() => handleEditPlant(item)}
+            >
+              <Text style={styles.actionBtnText}>✏️ Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionBtn, styles.stockBtn]}
+              onPress={() => handleToggleStock(item)}
+            >
+              <Text style={styles.actionBtnText}>{item.inStock ? '📦 Out Stock' : '✅ In Stock'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionBtn, styles.deleteBtn]}
+              onPress={() => handleDeletePlant(item)}
+            >
+              <Text style={styles.actionBtnText}>🗑️ Delete</Text>
+            </TouchableOpacity>
           </View>
         </View>
-        
-        <Text style={styles.plantCardCategory}>{item.category}</Text>
-        
-        <View style={styles.priceContainer}>
-          <Text style={styles.plantCardPrice}>${item.price.toFixed(2)}</Text>
-          {item.originalPrice && item.discount > 0 && (
-            <>
-              <Text style={styles.originalPrice}>${item.originalPrice.toFixed(2)}</Text>
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>-{item.discount}%</Text>
-              </View>
-            </>
-          )}
-        </View>
-        
-        <View style={styles.plantCardActions}>
-          <TouchableOpacity 
-            style={[styles.actionBtn, styles.editBtn]}
-            onPress={() => handleEditPlant(item)}
-          >
-            <Text style={styles.actionBtnText}>✏️ Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionBtn, styles.stockBtn]}
-            onPress={() => handleToggleStock(item)}
-          >
-            <Text style={styles.actionBtnText}>{item.inStock ? '📦 Out Stock' : '✅ In Stock'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionBtn, styles.deleteBtn]}
-            onPress={() => handleDeletePlant(item)}
-          >
-            <Text style={styles.actionBtnText}>🗑️ Delete</Text>
-          </TouchableOpacity>
-        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderEditModal = () => (
     <Modal
@@ -658,6 +752,132 @@ const AdminHome = () => {
     </Modal>
   );
 
+  // Order Detail Modal
+  const renderOrderDetailModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={orderDetailModalVisible}
+      onRequestClose={() => setOrderDetailModalVisible(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Order Details</Text>
+            <TouchableOpacity onPress={() => setOrderDetailModalVisible(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {selectedOrder && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.orderDetailSection}>
+                <Text style={styles.orderDetailLabel}>Order Number</Text>
+                <Text style={styles.orderDetailValue}>#{selectedOrder.orderId}</Text>
+                
+                <Text style={styles.orderDetailLabel}>Order Date</Text>
+                <Text style={styles.orderDetailValue}>{formatDate(selectedOrder.orderDate)}</Text>
+                
+                <Text style={styles.orderDetailLabel}>Customer Name</Text>
+                <Text style={styles.orderDetailValue}>{selectedOrder.customerName || 'Guest User'}</Text>
+                
+                <Text style={styles.orderDetailLabel}>Customer Email</Text>
+                <Text style={styles.orderDetailValue}>{selectedOrder.customerEmail || 'N/A'}</Text>
+                
+                <Text style={styles.orderDetailLabel}>Phone Number</Text>
+                <Text style={styles.orderDetailValue}>{selectedOrder.phoneNumber || 'N/A'}</Text>
+                
+                <Text style={styles.orderDetailLabel}>Delivery Address</Text>
+                <Text style={styles.orderDetailValue}>{selectedOrder.deliveryAddress || 'N/A'}</Text>
+                
+                <Text style={styles.orderDetailLabel}>Payment Method</Text>
+                <Text style={styles.orderDetailValue}>{selectedOrder.paymentMethod || 'N/A'}</Text>
+                
+                <Text style={styles.orderDetailLabel}>Order Status</Text>
+                <View style={styles.orderStatusUpdate}>
+                  <View style={[styles.orderStatusBadgeLarge, { backgroundColor: getOrderStatusColor(selectedOrder.status) }]}>
+                    <Text style={styles.orderStatusTextLarge}>{selectedOrder.status?.toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.statusButtons}>
+                    {['pending', 'processing', 'shipped', 'delivered', 'cancelled'].map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[
+                          styles.statusUpdateBtn,
+                          selectedOrder.status === status && styles.activeStatusUpdateBtn
+                        ]}
+                        onPress={() => updateOrderStatus(selectedOrder.orderId, status)}
+                      >
+                        <Text style={[
+                          styles.statusUpdateBtnText,
+                          selectedOrder.status === status && styles.activeStatusUpdateBtnText
+                        ]}>
+                          {status}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.orderDetailSection}>
+                <Text style={styles.orderDetailSectionTitle}>Order Items</Text>
+                {selectedOrder.items?.map((item, idx) => (
+                  <View key={idx} style={styles.orderItemRow}>
+                    <View style={styles.orderItemInfo}>
+                      <Text style={styles.orderItemName}>{item.name}</Text>
+                      <Text style={styles.orderItemQuantity}>Qty: {item.quantity}</Text>
+                    </View>
+                    <Text style={styles.orderItemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.orderDetailSection}>
+                <Text style={styles.orderDetailSectionTitle}>Payment Summary</Text>
+                <View style={styles.paymentSummaryRow}>
+                  <Text style={styles.paymentSummaryLabel}>Subtotal</Text>
+                  <Text style={styles.paymentSummaryValue}>${selectedOrder.subtotal?.toFixed(2) || '0.00'}</Text>
+                </View>
+                <View style={styles.paymentSummaryRow}>
+                  <Text style={styles.paymentSummaryLabel}>Tax (10%)</Text>
+                  <Text style={styles.paymentSummaryValue}>${selectedOrder.tax?.toFixed(2) || '0.00'}</Text>
+                </View>
+                <View style={styles.paymentSummaryRow}>
+                  <Text style={styles.paymentSummaryLabel}>Shipping</Text>
+                  <Text style={styles.paymentSummaryValue}>
+                    {selectedOrder.shipping === 0 ? 'Free' : `$${selectedOrder.shipping?.toFixed(2)}`}
+                  </Text>
+                </View>
+                {selectedOrder.discountAmount > 0 && (
+                  <View style={styles.paymentSummaryRow}>
+                    <Text style={styles.paymentSummaryLabel}>Discount</Text>
+                    <Text style={[styles.paymentSummaryValue, styles.discountText]}>
+                      -${selectedOrder.discountAmount?.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+                <View style={[styles.paymentSummaryRow, styles.totalSummaryRow]}>
+                  <Text style={styles.totalSummaryLabel}>Total</Text>
+                  <Text style={styles.totalSummaryValue}>${selectedOrder.total?.toFixed(2) || '0.00'}</Text>
+                </View>
+              </View>
+
+              {selectedOrder.estimatedDelivery && (
+                <View style={styles.orderDetailSection}>
+                  <Text style={styles.orderDetailSectionTitle}>Delivery Information</Text>
+                  <Text style={styles.estimatedDelivery}>
+                    📦 Estimated Delivery: {formatDate(selectedOrder.estimatedDelivery)}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#2ecc71" />
@@ -720,15 +940,53 @@ const AdminHome = () => {
                 <Text style={styles.sectionIcon}>🕒</Text>
                 <Text style={styles.sectionTitle}>Recent Orders</Text>
               </View>
-              <FlatList
-                data={recentOrders}
-                renderItem={renderOrderItem}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-              />
-              <TouchableOpacity style={styles.viewAllButton}>
-                <Text style={styles.viewAllText}>View All Orders →</Text>
-              </TouchableOpacity>
+              {orders.length === 0 ? (
+                <View style={styles.noOrdersContainer}>
+                  <Text style={styles.noOrdersText}>No orders yet</Text>
+                </View>
+              ) : (
+                <>
+                  {orders.slice(0, 3).map((order) => (
+                    <TouchableOpacity 
+                      key={order.orderId}
+                      style={styles.orderCard}
+                      onPress={() => viewOrderDetails(order)}
+                      activeOpacity={0.9}
+                    >
+                      <View style={styles.orderCardHeader}>
+                        <View>
+                          <Text style={styles.orderId}>#{order.orderId?.slice(-12)}</Text>
+                          <Text style={styles.orderDate}>{formatDate(order.orderDate)}</Text>
+                        </View>
+                        <View style={[styles.orderStatusBadge, { backgroundColor: getOrderStatusColor(order.status) }]}>
+                          <Text style={styles.orderStatusText}>{order.status?.toUpperCase()}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.orderCardBody}>
+                        <Text style={styles.orderCustomer}>Customer: {order.customerName || 'Guest User'}</Text>
+                        <Text style={styles.orderItems}>Items: {order.items?.length || 0} products</Text>
+                        <Text style={styles.orderTotal}>Total: ${order.total?.toFixed(2) || '0.00'}</Text>
+                      </View>
+                      
+                      <View style={styles.orderCardFooter}>
+                        <Text style={styles.paymentMethod}>Payment: {order.paymentMethod || 'N/A'}</Text>
+                        <Text style={[styles.orderAmount, { color: getOrderStatusColor(order.status) }]}>
+                          {order.status === 'delivered' ? '✓ Completed' : 'Processing'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                  {orders.length > 3 && (
+                    <TouchableOpacity 
+                      style={styles.viewAllButton}
+                      onPress={() => setActiveTab('orders')}
+                    >
+                      <Text style={styles.viewAllText}>View All Orders →</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </View>
 
             <View style={styles.quickActions}>
@@ -755,11 +1013,14 @@ const AdminHome = () => {
                   </View>
                   <Text style={styles.actionText}>Manage Plants</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={() => setActiveTab('orders')}
+                >
                   <View style={styles.actionIconCircle}>
                     <Text style={styles.actionIcon}>📊</Text>
                   </View>
-                  <Text style={styles.actionText}>Reports</Text>
+                  <Text style={styles.actionText}>View Orders</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionButton}>
                   <View style={styles.actionIconCircle}>
@@ -815,16 +1076,39 @@ const AdminHome = () => {
 
         {activeTab === 'orders' && (
           <View style={styles.content}>
-            <View style={styles.placeholderCard}>
-              <Text style={styles.placeholderIcon}>📋</Text>
-              <Text style={styles.placeholderText}>Order Management Module</Text>
-              <Text style={styles.placeholderSubtext}>Coming Soon with tracking features</Text>
+            <View style={styles.ordersHeader}>
+              <View style={styles.ordersHeaderLeft}>
+                <Text style={styles.ordersIcon}>📋</Text>
+                <Text style={styles.ordersTitle}>All Orders</Text>
+              </View>
+              <Text style={styles.ordersCount}>{orders.length} Total</Text>
             </View>
+            
+            {ordersLoading ? (
+              <ActivityIndicator size="large" color="#2ecc71" style={styles.loader} />
+            ) : orders.length === 0 ? (
+              <View style={styles.noOrdersFullContainer}>
+                <Text style={styles.noOrdersIcon}>📦</Text>
+                <Text style={styles.noOrdersTitle}>No Orders Yet</Text>
+                <Text style={styles.noOrdersMessage}>
+                  When customers place orders, they will appear here.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={orders}
+                renderItem={renderOrderItem}
+                keyExtractor={(item) => item.orderId}
+                scrollEnabled={false}
+                contentContainerStyle={styles.ordersList}
+              />
+            )}
           </View>
         )}
       </ScrollView>
 
       {renderEditModal()}
+      {renderOrderDetailModal()}
     </View>
   );
 };
@@ -834,7 +1118,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  // ... (keep all your existing styles)
   header: {
     backgroundColor: '#2ecc71',
     paddingTop: 60,
@@ -1002,50 +1285,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
   },
-  orderItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  noOrdersContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 30,
   },
-  orderInfo: {
-    flex: 1,
-  },
-  customerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2c3e50',
-  },
-  plantName: {
-    fontSize: 13,
+  noOrdersText: {
     color: '#7f8c8d',
-    marginTop: 2,
-  },
-  orderAmount: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#2ecc71',
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  deliveredBadge: {
-    backgroundColor: '#d5f4e6',
-  },
-  processingBadge: {
-    backgroundColor: '#fff3e0',
-  },
-  shippedBadge: {
-    backgroundColor: '#e3f2fd',
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   viewAllButton: {
     marginTop: 15,
@@ -1096,32 +1342,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2c3e50',
     fontWeight: '600',
-  },
-  placeholderCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 40,
-    alignItems: 'center',
-    marginTop: 50,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  placeholderIcon: {
-    fontSize: 60,
-    marginBottom: 15,
-  },
-  placeholderText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 8,
-  },
-  placeholderSubtext: {
-    fontSize: 13,
-    color: '#7f8c8d',
   },
   plantsHeader: {
     flexDirection: 'row',
@@ -1208,6 +1428,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 10,
     marginRight: 15,
+    backgroundColor: '#f0f0f0',
   },
   plantCardInfo: {
     flex: 1,
@@ -1301,6 +1522,277 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: 50,
+  },
+  ordersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+    paddingHorizontal: 5,
+  },
+  ordersHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ordersIcon: {
+    fontSize: 24,
+    marginRight: 10,
+  },
+  ordersTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  ordersCount: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  ordersList: {
+    paddingBottom: 20,
+  },
+  orderCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  orderCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  orderId: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  orderDate: {
+    fontSize: 11,
+    color: '#7f8c8d',
+    marginTop: 2,
+  },
+  orderStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  orderStatusText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  orderCardBody: {
+    marginBottom: 10,
+  },
+  orderCustomer: {
+    fontSize: 14,
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  orderItems: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginBottom: 4,
+  },
+  orderTotal: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2ecc71',
+  },
+  orderCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  paymentMethod: {
+    fontSize: 12,
+    color: '#7f8c8d',
+  },
+  orderAmount: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  noOrdersFullContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  noOrdersIcon: {
+    fontSize: 60,
+    marginBottom: 15,
+  },
+  noOrdersTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  noOrdersMessage: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  orderDetailSection: {
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  orderDetailLabel: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginBottom: 4,
+  },
+  orderDetailValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2c3e50',
+    marginBottom: 12,
+  },
+  orderDetailSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 12,
+  },
+  orderStatusUpdate: {
+    marginBottom: 15,
+  },
+  orderStatusBadgeLarge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 15,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+  orderStatusTextLarge: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 10,
+  },
+  statusUpdateBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    marginRight: 8,
+    marginBottom: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  activeStatusUpdateBtn: {
+    backgroundColor: '#2ecc71',
+  },
+  statusUpdateBtnText: {
+    fontSize: 12,
+    color: '#7f8c8d',
+  },
+  activeStatusUpdateBtnText: {
+    color: '#fff',
+  },
+  orderItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  orderItemInfo: {
+    flex: 1,
+  },
+  orderItemName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2c3e50',
+    marginBottom: 2,
+  },
+  orderItemQuantity: {
+    fontSize: 12,
+    color: '#7f8c8d',
+  },
+  orderItemPrice: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2ecc71',
+  },
+  paymentSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  paymentSummaryLabel: {
+    fontSize: 13,
+    color: '#7f8c8d',
+  },
+  paymentSummaryValue: {
+    fontSize: 13,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  totalSummaryRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    paddingTop: 10,
+    marginTop: 5,
+  },
+  totalSummaryLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  totalSummaryValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2ecc71',
+  },
+  estimatedDelivery: {
+    fontSize: 13,
+    color: '#2ecc71',
+    marginBottom: 15,
+  },
+  placeholderCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 40,
+    alignItems: 'center',
+    marginTop: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  placeholderIcon: {
+    fontSize: 60,
+    marginBottom: 15,
+  },
+  placeholderText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  placeholderSubtext: {
+    fontSize: 13,
+    color: '#7f8c8d',
   },
   modalContainer: {
     flex: 1,

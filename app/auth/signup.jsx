@@ -164,7 +164,7 @@ const Signup = () => {
   };
 
   const handleLoginRedirect = () => {
-    router.push('/(auth)/login');
+    router.push('/auth/login');
   };
 
   const handleUseDifferentEmail = () => {

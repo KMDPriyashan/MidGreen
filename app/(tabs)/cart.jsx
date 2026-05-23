@@ -299,7 +299,7 @@ const CartPage = () => {
               text: 'Continue Shopping',
               onPress: () => {
                 setCheckoutModalVisible(false);
-                router.push('/(tabs)/home');
+                router.push('/(tabs)/Homepage');
               },
             },
           ]

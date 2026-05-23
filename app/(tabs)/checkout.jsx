@@ -2,19 +2,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -28,7 +28,9 @@ const CheckoutPage = () => {
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [showThankYou, setShowThankYou] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [thankYouAnim] = useState(new Animated.Value(0));
 
   // Payment form states
   const [cardNumber, setCardNumber] = useState('');
@@ -49,15 +51,46 @@ const CheckoutPage = () => {
 
   const loadOrderDetails = async () => {
     try {
-      // Get order details from AsyncStorage or params
-      const storedOrder = await AsyncStorage.getItem('currentOrder');
-      if (storedOrder) {
-        setOrderDetails(JSON.parse(storedOrder));
-      } else if (params.orderData) {
-        setOrderDetails(JSON.parse(params.orderData));
+      let orderData = null;
+      
+      // First check if order data was passed via params
+      if (params.orderData) {
+        orderData = JSON.parse(params.orderData);
+      }
+      // Then check if there's a current order in storage
+      else {
+        const storedOrder = await AsyncStorage.getItem('currentOrder');
+        if (storedOrder) {
+          orderData = JSON.parse(storedOrder);
+        }
+      }
+      
+      // Also check if there's a selected order from orders page
+      const selectedOrder = await AsyncStorage.getItem('selectedOrderForCheckout');
+      if (selectedOrder && !orderData) {
+        orderData = JSON.parse(selectedOrder);
+        // Clear it after reading
+        await AsyncStorage.removeItem('selectedOrderForCheckout');
+      }
+      
+      if (orderData && orderData.items && orderData.items.length > 0) {
+        setOrderDetails(orderData);
+      } else {
+        // No order data found - show error and go back
+        Alert.alert(
+          'No Order Found',
+          'Please add items to your cart first.',
+          [
+            {
+              text: 'Go to Home',
+              onPress: () => router.replace('/(tabs)/Homepage')
+            }
+          ]
+        );
       }
     } catch (error) {
       console.error('Error loading order details:', error);
+      Alert.alert('Error', 'Failed to load order details');
     } finally {
       setLoading(false);
     }
@@ -93,8 +126,13 @@ const CheckoutPage = () => {
 
   // Validate form based on payment method
   const validatePaymentForm = () => {
+    if (!selectedPaymentMethod) {
+      Alert.alert('Error', 'Please select a payment method');
+      return false;
+    }
+
     if (selectedPaymentMethod === 'card') {
-      if (!cardNumber || cardNumber.length < 16) {
+      if (!cardNumber || cardNumber.replace(/\s/g, '').length < 16) {
         Alert.alert('Error', 'Please enter valid card number');
         return false;
       }
@@ -124,13 +162,29 @@ const CheckoutPage = () => {
     return true;
   };
 
-  // Process payment
-  const processPayment = async () => {
-    if (!selectedPaymentMethod) {
-      Alert.alert('Error', 'Please select a payment method');
-      return;
-    }
+  // Show thank you message and navigate to Homepage
+  const showThankYouAndNavigate = () => {
+    setShowThankYou(true);
+    Animated.sequence([
+      Animated.timing(thankYouAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.delay(3000),
+      Animated.timing(thankYouAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowThankYou(false);
+      router.replace('/(tabs)/Homepage');
+    });
+  };
 
+  // Process payment and place order
+  const processPayment = async () => {
     if (!validatePaymentForm()) {
       return;
     }
@@ -155,18 +209,14 @@ const CheckoutPage = () => {
         orders.push(order);
         await AsyncStorage.setItem('orders', JSON.stringify(orders));
         
-        // Clear cart
+        // Clear cart and current order
         await AsyncStorage.removeItem('cart');
         await AsyncStorage.removeItem('currentOrder');
+        await AsyncStorage.removeItem('selectedOrderForCheckout');
         
         setOrderPlaced(true);
         setPaymentModalVisible(false);
-        
-        // Animate success
-        Animated.sequence([
-          Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-          Animated.delay(2000),
-        ]).start();
+        showThankYouAndNavigate();
       } catch (error) {
         Alert.alert('Error', 'Payment failed. Please try again.');
       } finally {
@@ -298,7 +348,7 @@ const CheckoutPage = () => {
                   maxLength={10}
                 />
                 <View style={styles.codInfo}>
-                  <Text style={styles.codInfoText}>💡 Cash on Delivery available for orders under ₹50,000</Text>
+                  <Text style={styles.codInfoText}>💡 Cash on Delivery available for orders under $500</Text>
                 </View>
               </View>
             )}
@@ -349,56 +399,21 @@ const CheckoutPage = () => {
     );
   }
 
-  if (orderPlaced) {
+  if (!orderDetails || !orderDetails.items || orderDetails.items.length === 0) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-          
-          <ScrollView contentContainerStyle={styles.successContainer}>
-            <Animated.View style={[styles.successContent, { opacity: fadeAnim }]}>
-              <View style={styles.successIconContainer}>
-                <Text style={styles.successIcon}>🎉</Text>
-              </View>
-              
-              <Text style={styles.successTitle}>Order Placed Successfully!</Text>
-              <Text style={styles.successMessage}>
-                Thank you for shopping with MidGreen. Your order has been confirmed and will be delivered within 5-7 business days.
-              </Text>
-              
-              <View style={styles.orderSummaryCard}>
-                <Text style={styles.orderSummaryTitle}>Order Summary</Text>
-                <View style={styles.orderSummaryRow}>
-                  <Text style={styles.orderSummaryLabel}>Order ID</Text>
-                  <Text style={styles.orderSummaryValue}>#{orderDetails?.orderId?.slice(-12) || 'ORD' + Date.now()}</Text>
-                </View>
-                <View style={styles.orderSummaryRow}>
-                  <Text style={styles.orderSummaryLabel}>Total Amount</Text>
-                  <Text style={styles.orderSummaryValue}>${orderDetails?.total?.toFixed(2) || '0.00'}</Text>
-                </View>
-                <View style={styles.orderSummaryRow}>
-                  <Text style={styles.orderSummaryLabel}>Payment Method</Text>
-                  <Text style={styles.orderSummaryValue}>
-                    {paymentMethods.find(m => m.id === selectedPaymentMethod)?.name || 'Not specified'}
-                  </Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.trackOrderButton}
-                onPress={() => router.push('/(tabs)/orders')}
-              >
-                <Text style={styles.trackOrderButtonText}>📦 Track Your Order</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.continueShoppingButton}
-                onPress={() => router.push('/(tabs)/home')}
-              >
-                <Text style={styles.continueShoppingButtonText}>🌱 Continue Shopping</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </ScrollView>
+      <SafeAreaView style={styles.emptyContainer}>
+        <View style={styles.emptyContent}>
+          <Text style={styles.emptyIcon}>🛒</Text>
+          <Text style={styles.emptyTitle}>No Order Found</Text>
+          <Text style={styles.emptyMessage}>
+            Please add items to your cart or select an order to checkout.
+          </Text>
+          <TouchableOpacity 
+            style={styles.emptyButton}
+            onPress={() => router.replace('/(tabs)/Homepage')}
+          >
+            <Text style={styles.emptyButtonText}>Start Shopping</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -432,7 +447,7 @@ const CheckoutPage = () => {
           {/* Order Summary */}
           {orderDetails && (
             <View style={styles.orderSummary}>
-              <Text style={styles.sectionTitle}>Order Summary</Text>
+              <Text style={styles.sectionTitle}>📋 Order Summary</Text>
               
               <View style={styles.itemsList}>
                 {orderDetails.items?.map((item, index) => (
@@ -465,6 +480,14 @@ const CheckoutPage = () => {
                     {orderDetails.shipping === 0 ? 'Free' : `$${orderDetails.shipping?.toFixed(2)}`}
                   </Text>
                 </View>
+                {orderDetails.discountAmount > 0 && (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Discount</Text>
+                    <Text style={[styles.priceValue, styles.discountText]}>
+                      -${orderDetails.discountAmount?.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
                 <View style={[styles.priceRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>Total</Text>
                   <Text style={styles.totalValue}>${orderDetails.total?.toFixed(2) || '0.00'}</Text>
@@ -475,7 +498,7 @@ const CheckoutPage = () => {
 
           {/* Payment Methods */}
           <View style={styles.paymentSection}>
-            <Text style={styles.sectionTitle}>Select Payment Method</Text>
+            <Text style={styles.sectionTitle}>💳 Select Payment Method</Text>
             
             {paymentMethods.map((method) => (
               <TouchableOpacity
@@ -503,6 +526,16 @@ const CheckoutPage = () => {
             ))}
           </View>
 
+          {/* Delivery Information */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>🚚 Delivery Information</Text>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoText}>📦 Estimated Delivery: 5-7 business days</Text>
+              <Text style={styles.infoText}>📍 Free shipping on orders over $50</Text>
+              <Text style={styles.infoText}>🔄 Easy returns within 30 days</Text>
+            </View>
+          </View>
+
           {/* Thank You Note */}
           <View style={styles.thankYouNote}>
             <Text style={styles.thankYouNoteTitle}>💚 Thank You for Choosing MidGreen!</Text>
@@ -516,7 +549,7 @@ const CheckoutPage = () => {
             style={styles.placeOrderButton}
             onPress={() => setPaymentModalVisible(true)}
           >
-            <Text style={styles.placeOrderButtonText}>Proceed to Payment</Text>
+            <Text style={styles.placeOrderButtonText}>Place Order</Text>
           </TouchableOpacity>
 
           <View style={styles.bottomPadding} />
@@ -524,12 +557,34 @@ const CheckoutPage = () => {
 
         {/* Payment Modal */}
         {renderPaymentModal()}
+
+        {/* Thank You Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showThankYou}
+          onRequestClose={() => {}}
+        >
+          <View style={styles.thankYouModalContainer}>
+            <Animated.View style={[styles.thankYouModalContent, { opacity: thankYouAnim, transform: [{ scale: thankYouAnim }] }]}>
+              <View style={styles.thankYouIconContainer}>
+                <Text style={styles.thankYouIcon}>🎉</Text>
+              </View>
+              <Text style={styles.thankYouTitle}>Order Placed Successfully!</Text>
+              <Text style={styles.thankYouMessage}>
+                Thank you for shopping with MidGreen. Your order has been confirmed and will be delivered soon.
+              </Text>
+              <Text style={styles.thankYouRedirect}>Redirecting to home...</Text>
+            </Animated.View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  // ... (keep all your existing styles from above)
   safeArea: {
     flex: 1,
     backgroundColor: '#fff',
@@ -547,6 +602,44 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#7f8c8d',
     fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  emptyContent: {
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  emptyIcon: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 10,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 20,
+  },
+  emptyButton: {
+    backgroundColor: '#2ecc71',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: '#fff',
@@ -574,7 +667,6 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  // Hero Section
   heroSection: {
     backgroundColor: '#2ecc71',
     paddingHorizontal: 25,
@@ -609,13 +701,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     opacity: 0.95,
   },
-  // Order Summary
   orderSummary: {
     backgroundColor: '#fff',
     marginHorizontal: 15,
     marginTop: 15,
     borderRadius: 15,
-    padding: 15,
+    padding: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -658,7 +749,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#e0e0e0',
-    marginVertical: 10,
+    marginVertical: 12,
   },
   priceDetails: {
     marginTop: 5,
@@ -677,6 +768,9 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     fontWeight: '500',
   },
+  discountText: {
+    color: '#e74c3c',
+  },
   totalRow: {
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
@@ -693,13 +787,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2ecc71',
   },
-  // Payment Methods
   paymentSection: {
     backgroundColor: '#fff',
     marginHorizontal: 15,
     marginTop: 15,
     borderRadius: 15,
-    padding: 15,
+    padding: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -711,7 +804,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 15,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 10,
     backgroundColor: '#f8f9fa',
@@ -758,7 +851,28 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#2ecc71',
   },
-  // Thank You Note
+  infoSection: {
+    backgroundColor: '#fff',
+    marginHorizontal: 15,
+    marginTop: 15,
+    borderRadius: 15,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  infoCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    padding: 12,
+  },
+  infoText: {
+    fontSize: 13,
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
   thankYouNote: {
     backgroundColor: '#f0fdf4',
     marginHorizontal: 15,
@@ -781,7 +895,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  // Place Order Button
   placeOrderButton: {
     backgroundColor: '#2ecc71',
     marginHorizontal: 15,
@@ -799,7 +912,6 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 30,
   },
-  // Modal Styles
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -895,102 +1007,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
     marginBottom: 20,
+    marginHorizontal: 20,
   },
   payButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },
-  // Success Screen Styles
-  successContainer: {
-    flexGrow: 1,
+  thankYouModalContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 25,
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
-  successContent: {
+  thankYouModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 25,
+    padding: 30,
+    width: '85%',
     alignItems: 'center',
   },
-  successIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#f0fdf4',
+  thankYouIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#2ecc71',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 25,
+    marginBottom: 20,
   },
-  successIcon: {
-    fontSize: 50,
+  thankYouIcon: {
+    fontSize: 40,
   },
-  successTitle: {
+  thankYouTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#2c3e50',
-    textAlign: 'center',
     marginBottom: 12,
+    textAlign: 'center',
   },
-  successMessage: {
+  thankYouMessage: {
     fontSize: 14,
     color: '#7f8c8d',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
     lineHeight: 22,
   },
-  orderSummaryCard: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 15,
-    padding: 15,
-    width: '100%',
-    marginBottom: 20,
-  },
-  orderSummaryTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  orderSummaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  orderSummaryLabel: {
-    fontSize: 13,
-    color: '#7f8c8d',
-  },
-  orderSummaryValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2c3e50',
-  },
-  trackOrderButton: {
-    backgroundColor: '#2ecc71',
-    paddingVertical: 14,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  trackOrderButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  continueShoppingButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 14,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2ecc71',
-  },
-  continueShoppingButtonText: {
+  thankYouRedirect: {
+    fontSize: 12,
     color: '#2ecc71',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontStyle: 'italic',
   },
 });
 
