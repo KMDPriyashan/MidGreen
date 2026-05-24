@@ -28,10 +28,9 @@ const CartPage = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [quantityModalVisible, setQuantityModalVisible] = useState(false);
   const [tempQuantity, setTempQuantity] = useState(1);
-  const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('cart');
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [customerName, setCustomerName] = useState('');
 
   // Plant Data (for reference)
   const plantsData = {
@@ -127,15 +126,31 @@ const CartPage = () => {
     },
   };
 
-  // Load cart items from AsyncStorage
+  // Load cart items and customer name from AsyncStorage
   useEffect(() => {
     loadCartItems();
+    loadCustomerName();
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,
       useNativeDriver: true,
     }).start();
   }, []);
+
+  const loadCustomerName = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        setCustomerName(parsed.full_name || parsed.name || 'Guest User');
+      } else {
+        setCustomerName('Guest User');
+      }
+    } catch (error) {
+      console.error('Error loading customer name:', error);
+      setCustomerName('Guest User');
+    }
+  };
 
   const loadCartItems = async () => {
     try {
@@ -250,66 +265,42 @@ const CartPage = () => {
     );
   };
 
-  // Handle checkout
-  const handleCheckout = () => {
+  // Navigate to Checkout page with order data
+  const navigateToCheckout = async () => {
     if (cartItems.length === 0) {
       Alert.alert('Cart Empty', 'Please add items to your cart before checking out.');
       return;
     }
-    setCheckoutModalVisible(true);
-  };
 
-  // Process order
-  const processOrder = async () => {
-    setCheckoutLoading(true);
-    
-    setTimeout(async () => {
-      const orderDetails = {
-        orderId: 'ORD' + Date.now(),
-        items: cartItems,
+    try {
+      // Prepare order data
+      const orderData = {
+        items: cartItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          category: item.category,
+        })),
         subtotal: getSubtotal(),
         tax: getTax(),
         shipping: getShipping(),
         total: getTotal(),
-        date: new Date().toISOString(),
-        status: 'pending',
+        customerName: customerName,
       };
 
-      try {
-        const existingOrders = await AsyncStorage.getItem('orders');
-        const orders = existingOrders ? JSON.parse(existingOrders) : [];
-        orders.push(orderDetails);
-        await AsyncStorage.setItem('orders', JSON.stringify(orders));
-        
-        await AsyncStorage.removeItem('cart');
-        setCartItems([]);
-        
-        Alert.alert(
-          'Order Placed Successfully! 🎉',
-          `Your order #${orderDetails.orderId} has been placed. Total: $${getTotal().toFixed(2)}`,
-          [
-            {
-              text: 'View Orders',
-              onPress: () => {
-                setCheckoutModalVisible(false);
-                router.push('/(tabs)/orders');
-              },
-            },
-            {
-              text: 'Continue Shopping',
-              onPress: () => {
-                setCheckoutModalVisible(false);
-                router.push('/(tabs)/Homepage');
-              },
-            },
-          ]
-        );
-      } catch (error) {
-        Alert.alert('Error', 'Failed to process order. Please try again.');
-      } finally {
-        setCheckoutLoading(false);
-      }
-    }, 2000);
+      // Save current order to AsyncStorage
+      await AsyncStorage.setItem('currentOrder', JSON.stringify(orderData));
+      
+      // Navigate to checkout page
+      router.push({
+        pathname: '/(tabs)/checkout',
+        params: { orderData: JSON.stringify(orderData) }
+      });
+    } catch (error) {
+      console.error('Error preparing checkout:', error);
+      Alert.alert('Error', 'Failed to proceed to checkout. Please try again.');
+    }
   };
 
   // Navigation functions
@@ -529,9 +520,10 @@ const CartPage = () => {
                     <Text style={styles.totalValue}>${getTotal().toFixed(2)}</Text>
                   </View>
 
+                  {/* Updated Proceed to Place Order Button */}
                   <TouchableOpacity
                     style={styles.checkoutButton}
-                    onPress={handleCheckout}
+                    onPress={navigateToCheckout}
                   >
                     <Text style={styles.checkoutButtonText}>Proceed to Place Order</Text>
                   </TouchableOpacity>
@@ -612,49 +604,6 @@ const CartPage = () => {
                     <Text style={styles.saveModalButtonText}>Save</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            </View>
-          </Modal>
-
-          {/* Checkout Modal */}
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={checkoutModalVisible}
-            onRequestClose={() => setCheckoutModalVisible(false)}
-          >
-            <View style={styles.modalContainer}>
-              <View style={[styles.modalContent, styles.checkoutModal]}>
-                {checkoutLoading ? (
-                  <>
-                    <ActivityIndicator size="large" color="#2ecc71" />
-                    <Text style={styles.loadingText}>Processing your order...</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.modalTitle}>Confirm Order</Text>
-                    <Text style={styles.checkoutText}>
-                      Total Amount: <Text style={styles.checkoutTotal}>${getTotal().toFixed(2)}</Text>
-                    </Text>
-                    <Text style={styles.checkoutItems}>
-                      {cartItems.reduce((sum, item) => sum + item.quantity, 0)} item(s) in your cart
-                    </Text>
-                    <View style={styles.modalButtons}>
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.cancelModalButton]}
-                        onPress={() => setCheckoutModalVisible(false)}
-                      >
-                        <Text style={styles.cancelModalButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.saveModalButton]}
-                        onPress={processOrder}
-                      >
-                        <Text style={styles.saveModalButtonText}>Confirm Order</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
               </View>
             </View>
           </Modal>
@@ -1099,24 +1048,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     fontWeight: '600',
-  },
-  checkoutModal: {
-    width: '90%',
-  },
-  checkoutText: {
-    fontSize: 16,
-    color: '#2c3e50',
-    marginBottom: 10,
-  },
-  checkoutTotal: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2ecc71',
-  },
-  checkoutItems: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    marginBottom: 20,
   },
 });
 

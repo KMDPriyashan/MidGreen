@@ -1,15 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,11 +23,114 @@ const PlantDetail = () => {
   const { plantId } = useLocalSearchParams();
   const [plant, setPlant] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Review/Comment states
+  const [reviews, setReviews] = useState([]);
+  const [commentModalVisible, setCommentModalVisible] = useState(false);
+  const [reviewerName, setReviewerName] = useState('');
+  const [commentText, setCommentText] = useState('');
+  const [commentImage, setCommentImage] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Load plant data from AsyncStorage (including custom plants)
+  // Load plant data and reviews from AsyncStorage
   useEffect(() => {
     loadPlantData();
+    loadReviews();
   }, [plantId]);
+
+  const loadReviews = async () => {
+    try {
+      const storedReviews = await AsyncStorage.getItem(`reviews_${plantId}`);
+      if (storedReviews) {
+        const parsedReviews = JSON.parse(storedReviews);
+        // Sort by date (newest first) and show only latest 3
+        parsedReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setReviews(parsedReviews.slice(0, 3));
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    }
+  };
+
+  const saveReview = async (newReview) => {
+    try {
+      const storedReviews = await AsyncStorage.getItem(`reviews_${plantId}`);
+      let allReviews = storedReviews ? JSON.parse(storedReviews) : [];
+      allReviews.unshift(newReview); // Add new review at the beginning
+      await AsyncStorage.setItem(`reviews_${plantId}`, JSON.stringify(allReviews));
+      
+      // Sort by date (newest first) and show only latest 3
+      allReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setReviews(allReviews.slice(0, 3));
+    } catch (error) {
+      console.error('Error saving review:', error);
+    }
+  };
+
+  // Pick image from gallery
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Needed', 'Please grant camera roll permissions to add images');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setCommentImage(result.assets[0].uri);
+    }
+  };
+
+  const submitComment = async () => {
+    if (!reviewerName.trim()) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+    if (!commentText.trim()) {
+      Alert.alert('Error', 'Please enter your comment');
+      return;
+    }
+
+    setSubmitting(true);
+
+    // Get current user info
+    let userName = reviewerName;
+    try {
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData && !reviewerName) {
+        const parsed = JSON.parse(userData);
+        userName = parsed.full_name || parsed.name || reviewerName;
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+
+    const newReview = {
+      id: Date.now().toString(),
+      plantId: plantId,
+      reviewerName: userName,
+      comment: commentText,
+      image: commentImage,
+      date: new Date().toISOString(),
+      rating: 5, // Default rating
+    };
+
+    await saveReview(newReview);
+    
+    // Reset form
+    setReviewerName('');
+    setCommentText('');
+    setCommentImage(null);
+    setCommentModalVisible(false);
+    Alert.alert('Success', 'Your review has been posted!');
+    setSubmitting(false);
+  };
 
   const loadPlantData = async () => {
     try {
@@ -298,6 +405,41 @@ const PlantDetail = () => {
     return price;
   };
 
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  // Render review item
+  const renderReviewItem = ({ item }) => (
+    <View style={styles.reviewCard}>
+      <View style={styles.reviewHeader}>
+        <View style={styles.reviewerInfo}>
+          <Text style={styles.reviewerAvatar}>👤</Text>
+          <View>
+            <Text style={styles.reviewerName}>{item.reviewerName}</Text>
+            <Text style={styles.reviewDate}>{formatDate(item.date)}</Text>
+          </View>
+        </View>
+        <View style={styles.ratingStars}>
+          <Text style={styles.starIcon}>⭐</Text>
+          <Text style={styles.ratingText}>{item.rating || 5}.0</Text>
+        </View>
+      </View>
+      
+      {item.image && (
+        <Image source={{ uri: item.image }} style={styles.reviewImage} />
+      )}
+      
+      <Text style={styles.reviewComment}>{item.comment}</Text>
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -408,6 +550,35 @@ const PlantDetail = () => {
             </>
           )}
 
+          {/* Customer Reviews Section */}
+          <View style={styles.reviewsSection}>
+            <View style={styles.reviewsHeader}>
+              <Text style={styles.sectionTitle}>⭐ Customer Reviews</Text>
+              <TouchableOpacity 
+                style={styles.writeReviewButton}
+                onPress={() => setCommentModalVisible(true)}
+              >
+                <Text style={styles.writeReviewButtonText}>Write a Review</Text>
+              </TouchableOpacity>
+            </View>
+
+            {reviews.length === 0 ? (
+              <View style={styles.noReviewsContainer}>
+                <Text style={styles.noReviewsIcon}>💬</Text>
+                <Text style={styles.noReviewsText}>No reviews yet</Text>
+                <Text style={styles.noReviewsSubtext}>Be the first to review this plant!</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={reviews}
+                renderItem={renderReviewItem}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                contentContainerStyle={styles.reviewsList}
+              />
+            )}
+          </View>
+
           {/* Add to Cart Button */}
           <TouchableOpacity 
             style={[styles.cartButton, !plant.inStock && styles.disabledButton]}
@@ -420,6 +591,74 @@ const PlantDetail = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Write Review Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={commentModalVisible}
+        onRequestClose={() => setCommentModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Write a Review</Text>
+              <TouchableOpacity onPress={() => setCommentModalVisible(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalLabel}>Your Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter your name"
+                placeholderTextColor="#95a5a6"
+                value={reviewerName}
+                onChangeText={setReviewerName}
+              />
+
+              <Text style={styles.modalLabel}>Your Review</Text>
+              <TextInput
+                style={[styles.modalInput, styles.modalTextArea]}
+                placeholder="Share your experience with this plant..."
+                placeholderTextColor="#95a5a6"
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                numberOfLines={4}
+              />
+
+              <Text style={styles.modalLabel}>Add Photo (Optional)</Text>
+              <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
+                <Text style={styles.imagePickerButtonText}>📷 Select Image</Text>
+              </TouchableOpacity>
+
+              {commentImage && (
+                <View style={styles.previewImageContainer}>
+                  <Image source={{ uri: commentImage }} style={styles.previewImage} />
+                  <TouchableOpacity 
+                    style={styles.removeImageButton}
+                    onPress={() => setCommentImage(null)}
+                  >
+                    <Text style={styles.removeImageText}>✕ Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.submitButton, submitting && styles.disabledButton]}
+                onPress={submitComment}
+                disabled={submitting}
+              >
+                <Text style={styles.submitButtonText}>
+                  {submitting ? 'Submitting...' : 'Submit Review'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -578,6 +817,105 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 12,
   },
+  // Reviews Section Styles
+  reviewsSection: {
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  writeReviewButton: {
+    backgroundColor: '#2ecc71',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  writeReviewButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  noReviewsContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+  },
+  noReviewsIcon: {
+    fontSize: 40,
+    marginBottom: 10,
+  },
+  noReviewsText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  noReviewsSubtext: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginTop: 5,
+  },
+  reviewsList: {
+    paddingBottom: 10,
+  },
+  reviewCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 12,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  reviewerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reviewerAvatar: {
+    fontSize: 30,
+    marginRight: 10,
+  },
+  reviewerName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  reviewDate: {
+    fontSize: 10,
+    color: '#7f8c8d',
+    marginTop: 2,
+  },
+  ratingStars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  starIcon: {
+    fontSize: 12,
+    marginRight: 2,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: '#f39c12',
+    fontWeight: 'bold',
+  },
+  reviewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  reviewComment: {
+    fontSize: 14,
+    color: '#2c3e50',
+    lineHeight: 20,
+  },
   cartButton: {
     backgroundColor: '#2ecc71',
     paddingVertical: 16,
@@ -592,6 +930,99 @@ const styles = StyleSheet.create({
   cartButtonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '80%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  modalClose: {
+    fontSize: 24,
+    color: '#7f8c8d',
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 14,
+    marginBottom: 15,
+    backgroundColor: '#f8f9fa',
+    color: '#2c3e50',
+  },
+  modalTextArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  imagePickerButton: {
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  imagePickerButtonText: {
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  previewImageContainer: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  previewImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  removeImageButton: {
+    alignSelf: 'flex-end',
+    padding: 5,
+  },
+  removeImageText: {
+    color: '#e74c3c',
+    fontSize: 12,
+  },
+  submitButton: {
+    backgroundColor: '#2ecc71',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

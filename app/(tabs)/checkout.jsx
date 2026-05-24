@@ -6,6 +6,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Linking,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -14,7 +15,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -31,6 +32,17 @@ const CheckoutPage = () => {
   const [showThankYou, setShowThankYou] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [thankYouAnim] = useState(new Animated.Value(0));
+  
+  // Delivery details states
+  const [deliveryDetails, setDeliveryDetails] = useState({
+    fullName: '',
+    phoneNumber: '',
+    address: '',
+    city: '',
+    postalCode: '',
+  });
+  const [isEditingDelivery, setIsEditingDelivery] = useState(false);
+  const [hasSavedDelivery, setHasSavedDelivery] = useState(false);
 
   // Payment form states
   const [cardNumber, setCardNumber] = useState('');
@@ -38,10 +50,10 @@ const CheckoutPage = () => {
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [upiId, setUpiId] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
 
   useEffect(() => {
     loadOrderDetails();
+    loadSavedDeliveryDetails();
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 800,
@@ -49,15 +61,60 @@ const CheckoutPage = () => {
     }).start();
   }, []);
 
+  const loadSavedDeliveryDetails = async () => {
+    try {
+      const savedDelivery = await AsyncStorage.getItem('deliveryDetails');
+      if (savedDelivery) {
+        const parsed = JSON.parse(savedDelivery);
+        setDeliveryDetails(parsed);
+        setHasSavedDelivery(true);
+      }
+    } catch (error) {
+      console.error('Error loading delivery details:', error);
+    }
+  };
+
+  const saveDeliveryDetails = async () => {
+    // Validate delivery details before saving
+    if (!deliveryDetails.fullName.trim()) {
+      Alert.alert('Error', 'Please enter your full name');
+      return;
+    }
+    if (!deliveryDetails.phoneNumber.trim() || deliveryDetails.phoneNumber.length < 10) {
+      Alert.alert('Error', 'Please enter valid phone number');
+      return;
+    }
+    if (!deliveryDetails.address.trim()) {
+      Alert.alert('Error', 'Please enter your address');
+      return;
+    }
+    if (!deliveryDetails.city.trim()) {
+      Alert.alert('Error', 'Please enter your city');
+      return;
+    }
+
+    try {
+      await AsyncStorage.setItem('deliveryDetails', JSON.stringify(deliveryDetails));
+      setHasSavedDelivery(true);
+      setIsEditingDelivery(false);
+      Alert.alert('Success', 'Delivery details saved successfully!');
+    } catch (error) {
+      console.error('Error saving delivery details:', error);
+      Alert.alert('Error', 'Failed to save delivery details');
+    }
+  };
+
+  const updateDeliveryDetail = (field, value) => {
+    setDeliveryDetails(prev => ({ ...prev, [field]: value }));
+  };
+
   const loadOrderDetails = async () => {
     try {
       let orderData = null;
       
-      // First check if order data was passed via params
       if (params.orderData) {
         orderData = JSON.parse(params.orderData);
       }
-      // Then check if there's a current order in storage
       else {
         const storedOrder = await AsyncStorage.getItem('currentOrder');
         if (storedOrder) {
@@ -65,18 +122,15 @@ const CheckoutPage = () => {
         }
       }
       
-      // Also check if there's a selected order from orders page
       const selectedOrder = await AsyncStorage.getItem('selectedOrderForCheckout');
       if (selectedOrder && !orderData) {
         orderData = JSON.parse(selectedOrder);
-        // Clear it after reading
         await AsyncStorage.removeItem('selectedOrderForCheckout');
       }
       
       if (orderData && orderData.items && orderData.items.length > 0) {
         setOrderDetails(orderData);
       } else {
-        // No order data found - show error and go back
         Alert.alert(
           'No Order Found',
           'Please add items to your cart first.',
@@ -93,6 +147,83 @@ const CheckoutPage = () => {
       Alert.alert('Error', 'Failed to load order details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Send WhatsApp message automatically using API
+  const sendWhatsAppMessage = async (order) => {
+    try {
+      // Format order items for WhatsApp
+      let itemsList = '';
+      order.items.forEach((item, index) => {
+        itemsList += `${index + 1}. *${item.name}* - Qty: ${item.quantity} - $${(item.price * item.quantity).toFixed(2)}\n`;
+      });
+
+      // Format delivery address
+      const fullAddress = `${deliveryDetails.address}, ${deliveryDetails.city}${deliveryDetails.postalCode ? ` - ${deliveryDetails.postalCode}` : ''}`;
+
+      // Format the complete message
+      const message = `🌿 *MIDGREEN - NEW ORDER* 🌿
+━━━━━━━━━━━━━━━━━━━━━
+
+👤 *CUSTOMER DETAILS*
+━━━━━━━━━━━━━━━━━━━━━
+*Name:* ${deliveryDetails.fullName || 'Not provided'}
+*Phone:* ${deliveryDetails.phoneNumber || 'Not provided'}
+
+━━━━━━━━━━━━━━━━━━━━━
+📍 *DELIVERY ADDRESS*
+━━━━━━━━━━━━━━━━━━━━━
+${fullAddress}
+
+━━━━━━━━━━━━━━━━━━━━━
+📋 *ORDER SUMMARY*
+━━━━━━━━━━━━━━━━━━━━━
+*Order ID:* ${order.orderId}
+*Order Date:* ${new Date(order.orderDate).toLocaleString()}
+*Payment Method:* ${order.paymentMethod?.toUpperCase() || 'N/A'}
+
+━━━━━━━━━━━━━━━━━━━━━
+🛒 *ORDER ITEMS*
+━━━━━━━━━━━━━━━━━━━━━
+${itemsList}
+
+━━━━━━━━━━━━━━━━━━━━━
+💰 *PAYMENT SUMMARY*
+━━━━━━━━━━━━━━━━━━━━━
+*Subtotal:* $${order.subtotal?.toFixed(2) || '0.00'}
+*Tax (10%):* $${order.tax?.toFixed(2) || '0.00'}
+*Shipping:* ${order.shipping === 0 ? 'Free' : `$${order.shipping?.toFixed(2)}`}
+${order.discountAmount > 0 ? `*Discount:* -$${order.discountAmount?.toFixed(2)}\n` : ''}
+━━━━━━━━━━━━━━━━━━━━━
+*TOTAL AMOUNT:* *$${order.total?.toFixed(2)}*
+━━━━━━━━━━━━━━━━━━━━━
+
+🚚 *Estimated Delivery:* ${new Date(order.estimatedDelivery).toLocaleDateString()}
+
+💚 *Thank you for shopping with MidGreen!*`;
+
+      // Encode the message for API
+      const encodedMessage = encodeURIComponent(message);
+      
+      // WhatsApp number (without + symbol)
+      const whatsappNumber = '94724719902';
+      
+      // Use WhatsApp URL to send message
+      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+      
+      // Check if WhatsApp is installed
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+        console.log('WhatsApp opened with order details');
+      } else {
+        console.log('WhatsApp not installed');
+      }
+    } catch (error) {
+      console.error('Error sending WhatsApp message:', error);
+      // Don't block the order flow if WhatsApp fails
     }
   };
 
@@ -131,6 +262,26 @@ const CheckoutPage = () => {
       return false;
     }
 
+    // Validate delivery details if not saved
+    if (!hasSavedDelivery && !isEditingDelivery) {
+      if (!deliveryDetails.fullName.trim()) {
+        Alert.alert('Error', 'Please enter your full name');
+        return false;
+      }
+      if (!deliveryDetails.phoneNumber.trim() || deliveryDetails.phoneNumber.length < 10) {
+        Alert.alert('Error', 'Please enter valid phone number');
+        return false;
+      }
+      if (!deliveryDetails.address.trim()) {
+        Alert.alert('Error', 'Please enter your address');
+        return false;
+      }
+      if (!deliveryDetails.city.trim()) {
+        Alert.alert('Error', 'Please enter your city');
+        return false;
+      }
+    }
+
     if (selectedPaymentMethod === 'card') {
       if (!cardNumber || cardNumber.replace(/\s/g, '').length < 16) {
         Alert.alert('Error', 'Please enter valid card number');
@@ -151,11 +302,6 @@ const CheckoutPage = () => {
     } else if (selectedPaymentMethod === 'upi') {
       if (!upiId || !upiId.includes('@')) {
         Alert.alert('Error', 'Please enter valid UPI ID');
-        return false;
-      }
-    } else if (selectedPaymentMethod === 'cod') {
-      if (!phoneNumber || phoneNumber.length < 10) {
-        Alert.alert('Error', 'Please enter valid phone number');
         return false;
       }
     }
@@ -191,31 +337,35 @@ const CheckoutPage = () => {
 
     setPaymentLoading(true);
 
-    // Simulate payment processing
     setTimeout(async () => {
+      // Create order with all details including customer name
       const order = {
         orderId: 'ORD' + Date.now(),
         ...orderDetails,
         paymentMethod: selectedPaymentMethod,
         paymentStatus: 'completed',
-        orderDate: new Date().toISOString(),
+        orderDate: new Date().toISOString(),  // This is the key field for orders page
         estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        deliveryDetails: deliveryDetails,
+        customerName: deliveryDetails.fullName || orderDetails.customerName || 'Guest User',
       };
 
       try {
-        // Save to orders history
         const existingOrders = await AsyncStorage.getItem('orders');
         const orders = existingOrders ? JSON.parse(existingOrders) : [];
         orders.push(order);
         await AsyncStorage.setItem('orders', JSON.stringify(orders));
         
-        // Clear cart and current order
         await AsyncStorage.removeItem('cart');
         await AsyncStorage.removeItem('currentOrder');
         await AsyncStorage.removeItem('selectedOrderForCheckout');
         
         setOrderPlaced(true);
         setPaymentModalVisible(false);
+        
+        // Send WhatsApp message with order details
+        await sendWhatsAppMessage(order);
+        
         showThankYouAndNavigate();
       } catch (error) {
         Alert.alert('Error', 'Payment failed. Please try again.');
@@ -242,6 +392,89 @@ const CheckoutPage = () => {
       setExpiryDate(cleaned);
     }
   };
+
+  // Render delivery details section
+  const renderDeliverySection = () => (
+    <View style={styles.deliverySection}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionIcon}>📍</Text>
+        <Text style={styles.sectionTitle}>Delivery Details</Text>
+        {hasSavedDelivery && !isEditingDelivery && (
+          <TouchableOpacity onPress={() => setIsEditingDelivery(true)}>
+            <Text style={styles.editButton}>✏️ Edit</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {(isEditingDelivery || !hasSavedDelivery) ? (
+        <View style={styles.deliveryForm}>
+          <TextInput
+            style={styles.deliveryInput}
+            placeholder="Full Name *"
+            placeholderTextColor="#95a5a6"
+            value={deliveryDetails.fullName}
+            onChangeText={(text) => updateDeliveryDetail('fullName', text)}
+          />
+          <TextInput
+            style={styles.deliveryInput}
+            placeholder="Phone Number *"
+            placeholderTextColor="#95a5a6"
+            value={deliveryDetails.phoneNumber}
+            onChangeText={(text) => updateDeliveryDetail('phoneNumber', text)}
+            keyboardType="phone-pad"
+            maxLength={15}
+          />
+          <TextInput
+            style={styles.deliveryInput}
+            placeholder="Address *"
+            placeholderTextColor="#95a5a6"
+            value={deliveryDetails.address}
+            onChangeText={(text) => updateDeliveryDetail('address', text)}
+            multiline
+          />
+          <TextInput
+            style={styles.deliveryInput}
+            placeholder="City *"
+            placeholderTextColor="#95a5a6"
+            value={deliveryDetails.city}
+            onChangeText={(text) => updateDeliveryDetail('city', text)}
+          />
+          <TextInput
+            style={styles.deliveryInput}
+            placeholder="Postal Code"
+            placeholderTextColor="#95a5a6"
+            value={deliveryDetails.postalCode}
+            onChangeText={(text) => updateDeliveryDetail('postalCode', text)}
+            keyboardType="numeric"
+          />
+          <TouchableOpacity style={styles.saveDeliveryButton} onPress={saveDeliveryDetails}>
+            <Text style={styles.saveDeliveryButtonText}>Save Delivery Details</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.savedDeliveryInfo}>
+          <View style={styles.deliveryInfoRow}>
+            <Text style={styles.deliveryLabel}>👤 Name:</Text>
+            <Text style={styles.deliveryValue}>{deliveryDetails.fullName}</Text>
+          </View>
+          <View style={styles.deliveryInfoRow}>
+            <Text style={styles.deliveryLabel}>📞 Phone:</Text>
+            <Text style={styles.deliveryValue}>{deliveryDetails.phoneNumber}</Text>
+          </View>
+          <View style={styles.deliveryInfoRow}>
+            <Text style={styles.deliveryLabel}>📍 Address:</Text>
+            <Text style={styles.deliveryValue}>{deliveryDetails.address}, {deliveryDetails.city}</Text>
+          </View>
+          {deliveryDetails.postalCode && (
+            <View style={styles.deliveryInfoRow}>
+              <Text style={styles.deliveryLabel}>📮 Postal Code:</Text>
+              <Text style={styles.deliveryValue}>{deliveryDetails.postalCode}</Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
 
   // Render payment modal
   const renderPaymentModal = () => (
@@ -337,19 +570,8 @@ const CheckoutPage = () => {
 
             {selectedPaymentMethod === 'cod' && (
               <View style={styles.paymentForm}>
-                <Text style={styles.inputLabel}>Phone Number</Text>
-                <TextInput
-                  style={styles.paymentInput}
-                  placeholder="9876543210"
-                  placeholderTextColor="#95a5a6"
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                />
-                <View style={styles.codInfo}>
-                  <Text style={styles.codInfoText}>💡 Cash on Delivery available for orders under $500</Text>
-                </View>
+                <Text style={styles.codInfoText}>💡 Cash on Delivery available</Text>
+                <Text style={styles.codInfoText}>You will pay when you receive the order</Text>
               </View>
             )}
 
@@ -424,7 +646,6 @@ const CheckoutPage = () => {
       <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
         
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>←</Text>
@@ -434,7 +655,6 @@ const CheckoutPage = () => {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Hero Section */}
           <Animated.View style={[styles.heroSection, { opacity: fadeAnim }]}>
             <Text style={styles.heroHeading}>🌱 Complete Your Order</Text>
             <Text style={styles.heroSlogan}>One Step Closer to Greener Living</Text>
@@ -443,6 +663,9 @@ const CheckoutPage = () => {
               Every purchase helps us plant a tree and create a sustainable future.
             </Text>
           </Animated.View>
+
+          {/* Delivery Section */}
+          {renderDeliverySection()}
 
           {/* Order Summary */}
           {orderDetails && (
@@ -498,7 +721,7 @@ const CheckoutPage = () => {
 
           {/* Payment Methods */}
           <View style={styles.paymentSection}>
-            <Text style={styles.sectionTitle}>💳 Select Payment Method</Text>
+            
             
             {paymentMethods.map((method) => (
               <TouchableOpacity
@@ -526,7 +749,7 @@ const CheckoutPage = () => {
             ))}
           </View>
 
-          {/* Delivery Information */}
+          {/* Delivery Information Note */}
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>🚚 Delivery Information</Text>
             <View style={styles.infoCard}>
@@ -555,10 +778,8 @@ const CheckoutPage = () => {
           <View style={styles.bottomPadding} />
         </ScrollView>
 
-        {/* Payment Modal */}
         {renderPaymentModal()}
 
-        {/* Thank You Modal */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -584,7 +805,6 @@ const CheckoutPage = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... (keep all your existing styles from above)
   safeArea: {
     flex: 1,
     backgroundColor: '#fff',
@@ -701,7 +921,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     opacity: 0.95,
   },
-  orderSummary: {
+  deliverySection: {
     backgroundColor: '#fff',
     marginHorizontal: 15,
     marginTop: 15,
@@ -713,11 +933,81 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  sectionIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 15,
+  },
+  editButton: {
+    color: '#2ecc71',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deliveryForm: {
+    marginTop: 10,
+  },
+  deliveryInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 14,
+    marginBottom: 12,
+    backgroundColor: '#f8f9fa',
+    color: '#2c3e50',
+  },
+  saveDeliveryButton: {
+    backgroundColor: '#2ecc71',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  saveDeliveryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  savedDeliveryInfo: {
+    marginTop: 10,
+  },
+  deliveryInfoRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  deliveryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    width: 80,
+  },
+  deliveryValue: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    flex: 1,
+  },
+  orderSummary: {
+    backgroundColor: '#fff',
+    marginHorizontal: 15,
+    marginTop: 15,
+    borderRadius: 15,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   itemsList: {
     marginBottom: 10,
@@ -980,13 +1270,11 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     textAlign: 'center',
   },
-  codInfo: {
-    marginTop: 10,
-  },
   codInfoText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#7f8c8d',
     textAlign: 'center',
+    marginVertical: 20,
   },
   bankOption: {
     borderWidth: 1,

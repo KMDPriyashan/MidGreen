@@ -77,8 +77,14 @@ const OrdersPage = () => {
       const storedOrders = await AsyncStorage.getItem('orders');
       if (storedOrders) {
         const parsedOrders = JSON.parse(storedOrders);
-        parsedOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Sort by orderDate (newest first) - handle both 'date' and 'orderDate' fields
+        parsedOrders.sort((a, b) => {
+          const dateA = a.orderDate || a.date;
+          const dateB = b.orderDate || b.date;
+          return new Date(dateB) - new Date(dateA);
+        });
         setOrders(parsedOrders);
+        console.log('Loaded orders:', parsedOrders.length);
       }
     } catch (error) {
       console.error('Error loading orders:', error);
@@ -285,7 +291,7 @@ const OrdersPage = () => {
     );
   };
 
-  // Get status color - FIXED with null check
+  // Get status color
   const getStatusColor = (status) => {
     if (!status) return '#7f8c8d';
     switch (status.toLowerCase()) {
@@ -304,7 +310,7 @@ const OrdersPage = () => {
     }
   };
 
-  // Get status icon - FIXED with null check
+  // Get status icon
   const getStatusIcon = (status) => {
     if (!status) return '📦';
     switch (status.toLowerCase()) {
@@ -323,14 +329,27 @@ const OrdersPage = () => {
     }
   };
 
-  // Get status text - FIXED with null check
+  // Get status text
   const getStatusText = (status) => {
     if (!status) return 'Pending';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
-  // Format date
+  // Format date - handles both 'date' and 'orderDate' fields
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Format date for card display (shorter version)
+  const formatCardDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -429,10 +448,12 @@ const OrdersPage = () => {
     );
   };
 
-  // Render order card with swipeable
+  // Render order card with swipeable - UPDATED to show customer name and date
   const renderOrderCard = (order) => {
     if (!order) return null;
     const itemCount = order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+    const orderDate = order.orderDate || order.date;
+    const customerName = order.customerName || order.deliveryDetails?.fullName || 'Guest User';
     
     return (
       <Swipeable
@@ -449,13 +470,19 @@ const OrdersPage = () => {
               <Text style={styles.orderIcon}>📋</Text>
               <View>
                 <Text style={styles.orderId}>#{order.orderId?.slice(-8) || 'N/A'}</Text>
-                <Text style={styles.orderDate}>{formatDate(order.date)}</Text>
+                <Text style={styles.orderDate}>{formatCardDate(orderDate)}</Text>
               </View>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) }]}>
               <Text style={styles.statusIcon}>{getStatusIcon(order.status)}</Text>
               <Text style={styles.statusText}>{getStatusText(order.status)}</Text>
             </View>
+          </View>
+
+          {/* Customer Name - NEW */}
+          <View style={styles.customerContainer}>
+            <Text style={styles.customerIcon}>👤</Text>
+            <Text style={styles.customerName}>{customerName}</Text>
           </View>
 
           <View style={styles.orderItems}>
@@ -600,8 +627,7 @@ const OrdersPage = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Rest of the modals - keep the same as before */}
-          {/* Order Detail Modal */}
+          {/* Order Detail Modal - keep existing */}
           <Modal
             animationType="slide"
             transparent={true}
@@ -622,7 +648,6 @@ const OrdersPage = () => {
 
                 {selectedOrder && (
                   <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Order Info */}
                     <View style={styles.detailSection}>
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Order Number</Text>
@@ -631,7 +656,12 @@ const OrdersPage = () => {
                       
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Order Date</Text>
-                        <Text style={styles.detailValue}>{formatDate(selectedOrder.date)}</Text>
+                        <Text style={styles.detailValue}>{formatDate(selectedOrder.orderDate || selectedOrder.date)}</Text>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Customer Name</Text>
+                        <Text style={styles.detailValue}>{selectedOrder.customerName || selectedOrder.deliveryDetails?.fullName || 'Guest User'}</Text>
                       </View>
                       
                       <View style={styles.detailRow}>
@@ -694,6 +724,20 @@ const OrdersPage = () => {
                       </View>
                     </View>
 
+                    {/* Delivery Address if available */}
+                    {selectedOrder.deliveryDetails && (
+                      <View style={styles.detailSection}>
+                        <Text style={styles.sectionTitle}>Delivery Address</Text>
+                        <Text style={styles.detailValue}>
+                          {selectedOrder.deliveryDetails.fullName}\n
+                          {selectedOrder.deliveryDetails.phoneNumber}\n
+                          {selectedOrder.deliveryDetails.address}\n
+                          {selectedOrder.deliveryDetails.city}
+                          {selectedOrder.deliveryDetails.postalCode ? `, ${selectedOrder.deliveryDetails.postalCode}` : ''}
+                        </Text>
+                      </View>
+                    )}
+
                     {/* Action Buttons */}
                     <View style={styles.modalActions}>
                       <TouchableOpacity
@@ -740,7 +784,7 @@ const OrdersPage = () => {
             </View>
           </Modal>
 
-          {/* Edit Order Modal */}
+          {/* Edit Order Modal - keep existing */}
           <Modal
             animationType="slide"
             transparent={true}
@@ -761,7 +805,6 @@ const OrdersPage = () => {
 
                 {editedOrder && (
                   <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Order Status */}
                     <View style={styles.editSection}>
                       <Text style={styles.editLabel}>Order Status</Text>
                       <View style={styles.statusOptions}>
@@ -786,7 +829,6 @@ const OrdersPage = () => {
                       </View>
                     </View>
 
-                    {/* Order Items */}
                     <View style={styles.editSection}>
                       <Text style={styles.editLabel}>Order Items</Text>
                       {editedOrder.items?.map((item, index) => (
@@ -827,7 +869,6 @@ const OrdersPage = () => {
                       </TouchableOpacity>
                     </View>
 
-                    {/* Coupon Code Section */}
                     <View style={styles.editSection}>
                       <Text style={styles.editLabel}>Coupon Code</Text>
                       <View style={styles.couponContainer}>
@@ -870,7 +911,6 @@ const OrdersPage = () => {
                       </View>
                     </View>
 
-                    {/* Order Summary Preview */}
                     <View style={styles.editSection}>
                       <Text style={styles.editLabel}>Order Summary</Text>
                       <View style={styles.previewSummary}>
@@ -923,7 +963,7 @@ const OrdersPage = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... (keep all your existing styles from before)
+  // ... keep all existing styles plus add these new styles
   safeArea: {
     flex: 1,
     backgroundColor: '#fff',
@@ -1082,6 +1122,24 @@ const styles = StyleSheet.create({
   orderDate: {
     fontSize: 11,
     color: '#7f8c8d',
+  },
+  customerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  customerIcon: {
+    fontSize: 14,
+    marginRight: 8,
+  },
+  customerName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2c3e50',
+    flex: 1,
   },
   statusBadge: {
     flexDirection: 'row',
