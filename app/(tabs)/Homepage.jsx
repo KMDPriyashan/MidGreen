@@ -489,16 +489,16 @@ const HomePage = () => {
         {/* Support */}
         <View style={styles.footerSection}>
           <Text style={styles.footerSectionTitle}>Support</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/support')}>
             <Text style={styles.footerLink}>FAQ</Text>
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/support/shipping')}>
             <Text style={styles.footerLink}>Shipping Info</Text>
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/support/returns')}>
             <Text style={styles.footerLink}>Returns Policy</Text>
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/support/terms')}>
             <Text style={styles.footerLink}>Terms & Conditions</Text>
           </TouchableOpacity>
         </View>
@@ -512,7 +512,7 @@ const HomePage = () => {
           </View>
           <View style={styles.contactItem}>
             <Text style={styles.contactIcon}>📞</Text>
-            <Text style={styles.contactText}>+1 (234) 567-890</Text>
+            <Text style={styles.contactText}>+1 (234) 567 890</Text>
           </View>
           <View style={styles.contactItem}>
             <Text style={styles.contactIcon}>📍</Text>
