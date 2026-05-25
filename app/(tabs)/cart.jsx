@@ -32,98 +32,130 @@ const CartPage = () => {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [customerName, setCustomerName] = useState('');
 
-  // Plant Data (for reference)
+  // Plant Data with specific images for each plant
   const plantsData = {
     '1': {
       id: '1',
       name: 'Monstera Deliciosa',
       price: 29.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/monstera-deliciosa.png'),
     },
     '2': {
       id: '2',
       name: 'Snake Plant',
       price: 24.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/snake-plant.png'),
     },
     '3': {
       id: '3',
       name: 'Peace Lily',
       price: 19.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/peace-lily.png'),
     },
     '4': {
       id: '4',
       name: 'Fiddle Leaf Fig',
       price: 49.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/foddle leaf fig.jpg'),
     },
     '5': {
       id: '5',
       name: 'Lavender',
       price: 12.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/lavender.png'),
     },
     '6': {
       id: '6',
       name: 'Rose Bush',
       price: 34.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/rose bush.jpg'),
     },
     '7': {
       id: '7',
       name: 'Hydrangea',
       price: 27.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/hydrangea.png'),
     },
     '8': {
       id: '8',
       name: 'Aloe Vera',
       price: 14.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/aloe vera.png'),
     },
     '9': {
       id: '9',
       name: 'Jade Plant',
       price: 18.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/jade-plant.png'),
     },
     '10': {
       id: '10',
       name: 'String of Pearls',
       price: 22.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/string-of-pearls.png'),
     },
     '11': {
       id: '11',
       name: 'Orchid',
       price: 39.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/orchid.png'),
     },
     '12': {
       id: '12',
       name: 'African Violet',
       price: 15.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/african-violet.png'),
     },
     '13': {
       id: '13',
       name: 'Bougainvillea',
       price: 32.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/pink-bougainvillea.png'),
     },
     '14': {
       id: '14',
       name: 'Basil',
       price: 8.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/basil-plant.png'),
     },
     '15': {
       id: '15',
       name: 'Mint',
       price: 7.99,
-      image: require('../../assets/images/home-back.png'),
+      image: require('../../assets/images/mint-plant.png'),
     },
+  };
+
+  // Alternative: If you want to use a single placeholder but with proper images, use this mapping:
+  // If you don't have individual images, use different placeholder colors or online images
+  const getPlantImage = (plantId) => {
+    // Option 1: Use local images (recommended)
+    const images = {
+      '1': require('../../assets/images/monstera-deliciosa.png'),
+      '2': require('../../assets/images/snake-plant.png'),
+      '3': require('../../assets/images/peace-lily.png'),
+      '4': require('../../assets/images/foddle leaf fig.jpg'),
+      '5': require('../../assets/images/lavender.png'),
+      '6': require('../../assets/images/rose bush.jpg'),
+      '7': require('../../assets/images/hydrangea.png'),
+      '8': require('../../assets/images/aloe vera.png'),
+      '9': require('../../assets/images/jade-plant.png'),
+      '10': require('../../assets/images/string-of-pearls.png'),
+      '11': require('../../assets/images/orchid.png'),
+      '12': require('../../assets/images/african-violet.png'),
+      '13': require('../../assets/images/pink-bougainvillea.png'),
+      '14': require('../../assets/images/basil-plant.png'),
+      '15': require('../../assets/images/mint-plant.png'),
+    };
+    return images[plantId] || require('../../assets/images/home-back.png');
+    
+    // Option 2: Use Unsplash/online images if you don't have local ones
+    // const onlineImages = {
+    //   '1': { uri: 'https://images.unsplash.com/photo-1614594972323-fc7b4b2d8b1a?w=400' },
+    //   '2': { uri: 'https://images.unsplash.com/photo-1593482891906-9c1d6b8f7c1a?w=400' },
+    //   // ... etc
+    // };
+    // return onlineImages[plantId] || require('../../assets/images/home-back.png');
   };
 
   // Load cart items and customer name from AsyncStorage
@@ -335,10 +367,24 @@ const CartPage = () => {
     );
   };
 
-  // Render cart item with swipeable
+  // Render cart item with swipeable - FIXED: Using proper plant images
   const renderCartItem = ({ item }) => {
-    const plant = plantsData[item.id];
+    // Get plant data - first try from plantsData, then from item itself
+    const plant = plantsData[item.id] || item;
     if (!plant) return null;
+    
+    // Get the correct image for this plant
+    const getImageSource = () => {
+      // If the item already has an image stored
+      if (item.image) {
+        if (typeof item.image === 'string') {
+          return { uri: item.image };
+        }
+        return item.image;
+      }
+      // Otherwise get from plantsData
+      return plant.image || require('../../assets/images/home-back.png');
+    };
 
     return (
       <Swipeable
@@ -346,7 +392,7 @@ const CartPage = () => {
         overshootRight={false}
       >
         <View style={styles.cartItem}>
-          <Image source={plant.image} style={styles.itemImage} />
+          <Image source={getImageSource()} style={styles.itemImage} resizeMode="cover" />
           <View style={styles.itemDetails}>
             <Text style={styles.itemName}>{plant.name}</Text>
             <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
@@ -419,30 +465,20 @@ const CartPage = () => {
               showsVerticalScrollIndicator={false}
             >
               <Animated.View style={[styles.emptyCartContent, { opacity: fadeAnim }]}>
-                {/* App Name - MidGreen */}
                 <Text style={styles.appName}>MidGreen</Text>
-                
-                {/* Brand Slogan */}
                 <Text style={styles.slogan}>Grow Green, Live Clean</Text>
-                
-                {/* Empty Cart Icon */}
                 <View style={styles.emptyIconContainer}>
                   <Text style={styles.emptyIcon}>🛒</Text>
                 </View>
-                
-                {/* Empty Cart Message */}
                 <Text style={styles.emptyTitle}>Your cart is empty</Text>
                 <Text style={styles.emptyMessage}>
                   Looks like you haven't added any plants to your cart yet.
                 </Text>
-                
-                {/* Company Mission & Quality Description */}
                 <View style={styles.companyInfo}>
                   <Text style={styles.companyDescription}>
                     🌱 At MidGreen, we bring nature to your doorstep with premium quality plants 
                     that purify air, reduce stress, and bring life to your space.
                   </Text>
-                  
                   <View style={styles.featuresList}>
                     <View style={styles.featureItem}>
                       <Text style={styles.featureIcon}>✓</Text>
@@ -466,8 +502,6 @@ const CartPage = () => {
                     </View>
                   </View>
                 </View>
-                
-                {/* Shop Now Button */}
                 <TouchableOpacity
                   style={styles.shopNowButton}
                   onPress={navigateToHome}
@@ -481,7 +515,7 @@ const CartPage = () => {
               <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Cart Items */}
                 <View style={styles.cartItemsContainer}>
-                  {cartItems.map((item, index) => (
+                  {cartItems.map((item) => (
                     <View key={item.id}>
                       {renderCartItem({ item })}
                     </View>
@@ -520,7 +554,6 @@ const CartPage = () => {
                     <Text style={styles.totalValue}>${getTotal().toFixed(2)}</Text>
                   </View>
 
-                  {/* Updated Proceed to Place Order Button */}
                   <TouchableOpacity
                     style={styles.checkoutButton}
                     onPress={navigateToCheckout}
@@ -614,6 +647,7 @@ const CartPage = () => {
 };
 
 const styles = StyleSheet.create({
+  // ... (keep all your existing styles)
   safeArea: {
     flex: 1,
     backgroundColor: '#fff',
@@ -670,7 +704,6 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     fontWeight: '600',
   },
-  // Empty Cart Styles with App Name & Slogan
   emptyCartContainer: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -768,7 +801,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  // Cart Items Styles
   cartItemsContainer: {
     paddingHorizontal: 15,
     paddingTop: 15,
